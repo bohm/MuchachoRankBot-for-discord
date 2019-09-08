@@ -12,12 +12,61 @@ namespace DiscordBot
     public class Commands : ModuleBase<SocketCommandContext>
     {
         [Command("MuchoRank")]
-        public async Task info()
+        public async Task Info()
         {
             await ReplyAsync("!rank NICK PLATFORM[PC, XBOX, PS4]");
         }
+        [Command("ticho")]
+        public async Task Quiet()
+        {
+            var Author = Context.Message.Author;
+            var Guild = Context.Guild;
+            await Bot.RemoveLoudRoles(Author, Guild);
+            await ReplyAsync(Author.Username + ": Odted nebudete notifikovani, kdyz nekdo oznaci vasi roli. Poslete prikaz !nahlas pro zapnuti notifikaci.");
+        }
+
+        [Command("nahlas")]
+        public async Task Loud()
+        {
+            // Add the user to any mentionable rank roles.
+            var Author = Context.Message.Author;
+            var Guild = Context.Guild;
+            await Bot.AddLoudRoles(Author, Guild);
+            await ReplyAsync(Author.Username + ": Nyni budete notifikovani, kdyz nekdo zapne vasi roli.");
+        }
+
+        [Command("chill")]
+        public async Task Chill()
+        {
+            var Author = (Discord.WebSocket.SocketGuildUser) Context.Message.Author;
+            await Bot.ClearAllRanks(Author);
+            var ChillRole = Context.Guild.Roles.FirstOrDefault(x => x.Name == settings.ChillRole);
+            await Author.AddRoleAsync(ChillRole);
+            await ReplyAsync(Author.Username + ": Uz nebudeme na tomto serveru sledovat vase ranky. Chill on!");
+        }
+        
         [Command("rank")]
-        public async Task rank(string nick, string platform)
+        public async Task rank(string Nick, string Platform)
+        {
+            try
+            {
+                var Author = Context.Message.Author;
+                var RankTuple = await Bot.GetCurrentRank(Nick, "EU", Platform);
+                if (RankTuple.Item2 != -1)
+                {
+                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank " + settings.LoudBigRoles[RankTuple.Item1] + " plus " + settings.LoudTinyRoles[RankTuple.Item2]);
+                } else
+                {
+                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank " + settings.LoudBigRoles[RankTuple.Item1]);
+                }
+            } catch (RankParsingException)
+            {
+                await ReplyAsync("Communication to the R6Tab server failed. Please try again or contact the Discord admins.");
+            }
+        }
+
+        [Command("oldrank")]
+        public async Task oldrank(string nick, string platform)
         {
             platform = platform.ToLower();
             switch (platform)
@@ -124,6 +173,8 @@ namespace DiscordBot
                 await ReplyAsync("Please, type the correct platform name");
             }
         }
+
+
         [Command("settings")]
         public async Task settingsCommands(string password)
         {
