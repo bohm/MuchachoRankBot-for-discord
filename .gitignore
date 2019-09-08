@@ -5,3 +5,4 @@
 /obj
 /bin/Debug/netcoreapp2.1
 /.vs
+/Secrets.cs

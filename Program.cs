@@ -217,10 +217,9 @@ namespace DiscordBot
                 .AddSingleton(client)
                 .AddSingleton(commands)
                 .BuildServiceProvider();
-            string botToken = "TOKEN";
             client.Log += Log;
             await RegisterCommandsAsync();
-            await client.LoginAsync(Discord.TokenType.Bot, botToken);
+            await client.LoginAsync(Discord.TokenType.Bot, Secrets.botToken);
             await client.StartAsync();
             await client.SetGameAsync(settings.get_botStatus());
             await Task.Delay(-1);
