@@ -35,5 +35,20 @@ namespace DiscordBot
         }
     }
 
+    public class DoNotTrackException : Exception
+    {
+        public DoNotTrackException()
+        {
+        }
 
+        public DoNotTrackException(string message)
+            : base(message)
+        {
+        }
+
+        public DoNotTrackException(string message, Exception inner)
+            : base(message, inner)
+        {
+        }
+    }
 }

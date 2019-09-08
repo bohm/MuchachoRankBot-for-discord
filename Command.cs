@@ -11,6 +11,7 @@ namespace DiscordBot
 {
     public class Commands : ModuleBase<SocketCommandContext>
     {
+
         [Command("MuchoRank")]
         public async Task Info()
         {
@@ -38,10 +39,14 @@ namespace DiscordBot
         [Command("chill")]
         public async Task Chill()
         {
-            var Author = (Discord.WebSocket.SocketGuildUser) Context.Message.Author;
+            var Author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
+            // TODO: put user in the DoNotTrack DB.
             await Bot.ClearAllRanks(Author);
             var ChillRole = Context.Guild.Roles.FirstOrDefault(x => x.Name == settings.ChillRole);
-            await Author.AddRoleAsync(ChillRole);
+            if (ChillRole != null)
+            {
+                await Author.AddRoleAsync(ChillRole);
+            }
             await ReplyAsync(Author.Username + ": Uz nebudeme na tomto serveru sledovat vase ranky. Chill on!");
         }
         

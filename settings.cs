@@ -2,6 +2,8 @@
 {
     class settings
     {
+        // IDs of: DoctorOrson, Kempik, GameOver.
+        public static readonly ulong[] Supervisors = { 428263908281942038, 182174188323340289, 213681987561586693 };
         private static string settingsPassword = "1234";
         private static string botStatus = "!R6CZrank";
         private static string logFolder = null;
