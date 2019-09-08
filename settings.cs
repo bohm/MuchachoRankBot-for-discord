@@ -6,6 +6,8 @@
         private static string botStatus = "!R6CZrank";
         private static string logFolder = null;
 
+        public static string serializeFile = "C:\rsix.json";
+
         public static readonly string[] R6TabRanks = {
                             "unrank",
                             "Copper 4","Copper 3","Copper 2","Copper 1",
@@ -45,7 +47,7 @@
         public static readonly string ChillRole = "Full Chill";
 
 
-        // Gives you a big role index from the R6Tab rank index.
+        // Gives you a big role array index from the R6Tab rank array index.
         // You may want to change this if the R6Tab API changes.
 
         public static int BigRoleFromRank(int TabRank)
@@ -86,7 +88,7 @@
             }
         }
 
-        // Gives you a tiny role index from the R6Tab rank index.
+        // Gives you a tiny role array index from the R6Tab rank array index.
         // You may want to change this if the R6Tab API changes.
         public static int TinyRoleFromRank(int TabRank)
         {

@@ -46,7 +46,7 @@ namespace DiscordBot
         }
         
         [Command("rank")]
-        public async Task rank(string Nick, string Platform)
+        public async Task Rank(string Nick, string Platform)
         {
             try
             {
@@ -54,10 +54,10 @@ namespace DiscordBot
                 var RankTuple = await Bot.GetCurrentRank(Nick, "EU", Platform);
                 if (RankTuple.Item2 != -1)
                 {
-                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank " + settings.LoudBigRoles[RankTuple.Item1] + " plus " + settings.LoudTinyRoles[RankTuple.Item2]);
+                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank jako " + settings.LoudBigRoles[RankTuple.Item1] + " plus " + settings.LoudTinyRoles[RankTuple.Item2]);
                 } else
                 {
-                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank " + settings.LoudBigRoles[RankTuple.Item1]);
+                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank jako " + settings.LoudBigRoles[RankTuple.Item1]);
                 }
             } catch (RankParsingException)
             {
@@ -66,7 +66,7 @@ namespace DiscordBot
         }
 
         [Command("oldrank")]
-        public async Task oldrank(string nick, string platform)
+        public async Task Oldrank(string nick, string platform)
         {
             platform = platform.ToLower();
             switch (platform)

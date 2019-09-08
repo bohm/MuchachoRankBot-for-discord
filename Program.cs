@@ -10,32 +10,17 @@ using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using System.Net;
 using System.Net.Http;
+using System.Collections.Generic;
 
 namespace DiscordBot
 {
-    public class RankParsingException : Exception
-    {
-        public RankParsingException()
-        {
-        }
-
-        public RankParsingException(string message)
-            : base(message)
-        {
-        }
-
-        public RankParsingException(string message, Exception inner)
-            : base(message, inner)
-        {
-        }
-    }
-
     class Bot
     {
-        static void Main(string[] args) => new Bot().RunBotAsync().GetAwaiter().GetResult();
         private DiscordSocketClient client;
         private CommandService commands;
         private IServiceProvider services;
+        // The internal mapping between Discord names and Uplay (or xbox) names which we use to track ranks.
+        private Dictionary<string, Tuple<string,string> > DiscordUplay;
 
         public static int RoleNameIndex(string Name, string[] RoleNames)
         {
@@ -194,6 +179,36 @@ namespace DiscordBot
             }
         }
 
+        public Bot()
+        {
+            DiscordUplay = new Dictionary<string, Tuple<string, string>>();
+        }
+
+        public void UpdateRank(Discord.WebSocket.SocketGuildUser player, Tuple<string,string> playerInfo)
+        {
+
+        }
+
+        public Tuple<string,string> QueryMapping(string DiscordNick)
+        {
+            Tuple<string,string> UplayNick = null;
+            DiscordUplay.TryGetValue(DiscordNick, out UplayNick);
+            return UplayNick;
+        }
+
+        public void InsertIntoMapping(string discordNick, string uplayNick, string platform)
+        {
+            if (DiscordUplay.ContainsKey(discordNick))
+            {
+                throw new DuplicateException();
+            }
+            else
+            {
+                Tuple<string, string> ins = new Tuple<string, string>(uplayNick, platform);
+                DiscordUplay[discordNick] = ins;
+            }
+        }
+
         public async Task RunBotAsync()
         {
             client = new DiscordSocketClient();
@@ -202,8 +217,7 @@ namespace DiscordBot
                 .AddSingleton(client)
                 .AddSingleton(commands)
                 .BuildServiceProvider();
-            string botToken = "NjE5OTI1MjA4NTEzNjQyNTM3.XXPU0A.8V0GeMdg7u7nGX-ipnxqXQoWR-g";
-            // string botToken = "TOKEN";
+            string botToken = "TOKEN";
             client.Log += Log;
             await RegisterCommandsAsync();
             await client.LoginAsync(Discord.TokenType.Bot, botToken);
@@ -238,4 +252,10 @@ namespace DiscordBot
             await client.SetGameAsync(settings.get_botStatus());
         }
     }
+
+    static void Main(string[] args)
+    {
+        new Bot().RunBotAsync().GetAwaiter().GetResult();
+    }
+
 }
