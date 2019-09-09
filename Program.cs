@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using Newtonsoft.Json;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Linq;
@@ -11,30 +12,34 @@ using System.Text.RegularExpressions;
 using System.Net;
 using System.Net.Http;
 using System.Collections.Generic;
+using System.IO;
 
 namespace DiscordBot
 {
     class Bot
     {
+        public static Bot Instance;
+        // The guild we are operating on. We start doing things only once this is no longer null.
+        public Discord.WebSocket.SocketGuild ResidentGuild;
+
         private DiscordSocketClient client;
         private CommandService commands;
         private IServiceProvider services;
 
-        // The guild we are operating on.
-        private Discord.WebSocket.SocketGuild BoundGuild;
 
         // The internal mapping between Discord names and Uplay (or xbox) names which we use to track ranks.
         private Dictionary<ulong, Tuple<string, string>> DiscordUplay;
         // The internal mapping for people that should not be tracked.
         private HashSet<ulong> DoNotTrack;
+        private HashSet<ulong> QuietPlayers;
 
         // The semaphore (in fact a mutex) that blocks the access to DoNotTrack and DiscordUplay
-        private SemaphoreSlim Access;
+        private readonly SemaphoreSlim Access;
 
 
-        public static bool IsSupervisor(ulong id)
+        public static bool IsOperator(ulong id)
         {
-            return (settings.Supervisors.Contains(id));
+            return (settings.Operators.Contains(id));
         }
 
         public static int RoleNameIndex(string Name, string[] RoleNames)
@@ -53,27 +58,21 @@ namespace DiscordBot
         // Remove all rank roles from a user.
         public static async Task ClearAllRanks(Discord.WebSocket.SocketGuildUser User)
         {
-            foreach (var RankRole in User.Roles.Where(x => settings.LoudBigRoles.Contains(x.Name) || settings.LoudTinyRoles.Contains(x.Name) || settings.QuietBigRoles.Contains(x.Name) || settings.QuietTinyRoles.Contains(x.Name)))
+            foreach (var RankRole in User.Roles.Where(x => settings.BigLoudRoles.Contains(x.Name) || settings.TinyLoudRoles.Contains(x.Name) || settings.BigQuietRoles.Contains(x.Name) || settings.TinyQuietRoles.Contains(x.Name)))
             {
                 await User.RemoveRoleAsync(RankRole);
             }
         }
 
-        // Add a specific rank (loud and quiet) to a user.
-        public static async Task SetRanks(Discord.WebSocket.SocketGuild guild, Discord.WebSocket.SocketGuildUser user, Tuple<int, int> roles)
+        // Add a specific rank to a user.
+        // Only sets up quiet ranks -- if you want to set up all ranks, call AddLoudRoles() afterwards.
+        public static async Task SetQuietRanks(Discord.WebSocket.SocketGuild guild, Discord.WebSocket.SocketGuildUser user, Tuple<int, int> roles)
         {
             // The big role should never be -1, but we still check it.
             if (roles.Item1 != -1)
             {
-                string loudBigName = settings.LoudBigRoles[roles.Item1];
-                string quietBigName = settings.QuietBigRoles[roles.Item1];
-                var loudBigRole = guild.Roles.FirstOrDefault(x => x.Name == loudBigName);
+                string quietBigName = settings.BigQuietRoles[roles.Item1];
                 var quietBigRole = guild.Roles.FirstOrDefault(x => x.Name == quietBigName);
-
-                if (loudBigRole != null)
-                {
-                    await user.AddRoleAsync(loudBigRole);
-                }
 
                 if (quietBigRole != null)
                 {
@@ -84,15 +83,8 @@ namespace DiscordBot
             // The tiny role can be -1 (Unranked, Diamond, ...).
             if (roles.Item2 != -1)
             {
-                string loudTinyName = settings.LoudTinyRoles[roles.Item2];
-                string quietTinyName = settings.QuietTinyRoles[roles.Item2];
-                var loudTinyRole = guild.Roles.FirstOrDefault(x => x.Name == loudTinyName);
+                string quietTinyName = settings.TinyQuietRoles[roles.Item2];
                 var quietTinyRole = guild.Roles.FirstOrDefault(x => x.Name == quietTinyName);
-
-                if (loudTinyRole != null)
-                {
-                    await user.AddRoleAsync(loudTinyRole);
-                }
 
                 if (quietTinyRole != null)
                 {
@@ -106,7 +98,7 @@ namespace DiscordBot
             // If the user is in any mentionable rank roles, they will be removed.
             var Us = (Discord.WebSocket.SocketGuildUser)Author;
             // For each loud role, which can be a loud big role or a loud tiny role:
-            foreach (var LoudRole in Us.Roles.Where(x => settings.LoudBigRoles.Contains(x.Name) || settings.LoudTinyRoles.Contains(x.Name)))
+            foreach (var LoudRole in Us.Roles.Where(x => settings.BigLoudRoles.Contains(x.Name) || settings.TinyLoudRoles.Contains(x.Name)))
             {
                 await Us.RemoveRoleAsync(LoudRole);
             }
@@ -117,12 +109,12 @@ namespace DiscordBot
             var Us = (Discord.WebSocket.SocketGuildUser)Author;
 
             // First add big roles;
-            foreach (var QuietRole in Us.Roles.Where(x => settings.QuietBigRoles.Contains(x.Name)))
+            foreach (var QuietRole in Us.Roles.Where(x => settings.BigQuietRoles.Contains(x.Name)))
             {
-                int index = RoleNameIndex(QuietRole.Name, settings.QuietBigRoles);
+                int index = RoleNameIndex(QuietRole.Name, settings.BigQuietRoles);
                 if (index != -1)
                 {
-                    string Corresponding = settings.LoudBigRoles[index];
+                    string Corresponding = settings.BigLoudRoles[index];
                     var LoudRole = Guild.Roles.FirstOrDefault(x => x.Name == Corresponding);
                     if (LoudRole != null)
                     {
@@ -133,12 +125,12 @@ namespace DiscordBot
             }
 
             // Then add tiny roles.
-            foreach (var QuietRole in Us.Roles.Where(x => settings.QuietTinyRoles.Contains(x.Name)))
+            foreach (var QuietRole in Us.Roles.Where(x => settings.TinyQuietRoles.Contains(x.Name)))
             {
-                int index = RoleNameIndex(QuietRole.Name, settings.QuietTinyRoles);
+                int index = RoleNameIndex(QuietRole.Name, settings.TinyQuietRoles);
                 if (index != -1)
                 {
-                    string Corresponding = settings.LoudTinyRoles[index];
+                    string Corresponding = settings.TinyLoudRoles[index];
                     var LoudRole = Guild.Roles.FirstOrDefault(x => x.Name == Corresponding);
                     if (LoudRole != null)
                     {
@@ -236,24 +228,133 @@ namespace DiscordBot
             }
         }
 
+        public async Task BackupMappings()
+        {
+            await Access.WaitAsync();
+            JsonSerializer serializer = new JsonSerializer();
+
+            using (StreamWriter sw = new StreamWriter(settings.serializeFile))
+            using (JsonWriter jw = new JsonTextWriter(sw))
+            {
+                serializer.Serialize(jw, DiscordUplay);
+                serializer.Serialize(jw, DoNotTrack);
+                serializer.Serialize(jw, QuietPlayers);
+            }
+            Access.Release();
+        }
+
         public Bot()
         {
-            DiscordUplay = new Dictionary<ulong, Tuple<string, string>>();
+            Instance = this;
             Access = new SemaphoreSlim(1, 1);
-            DoNotTrack = new HashSet<ulong>();
+
+            // Try to deserialize the backup file first; if not found, initialize new structures.
+            if (File.Exists(settings.serializeFile))
+            {
+                try
+                {
+                    StreamReader file = File.OpenText(settings.serializeFile);
+                    JsonSerializer serializer = new JsonSerializer();
+                    DiscordUplay = (Dictionary<ulong, Tuple<string, string>>)serializer.Deserialize(file, typeof(Dictionary<ulong, Tuple<string, string>>));
+                    DoNotTrack = (HashSet<ulong>)serializer.Deserialize(file, typeof(HashSet<ulong>));
+                    QuietPlayers = (HashSet<ulong>)serializer.Deserialize(file, typeof(HashSet<ulong>));
+                    file.Close();
+                }
+                catch (IOException)
+                {
+                    System.Console.WriteLine("Failed to load the backup file, starting from scratch.");
+                }
+            }
+
+            if (DiscordUplay == null)
+            {
+                DiscordUplay = new Dictionary<ulong, Tuple<string, string>>();
+            }
+
+            if (DoNotTrack == null)
+            {
+                DoNotTrack = new HashSet<ulong>();
+            }
+
+            if (QuietPlayers == null)
+            {
+                QuietPlayers = new HashSet<ulong>();
+            }
+        }
+
+
+        // Creates all roles that the bot needs and which have not been created manually yet.
+        public async Task PopulateRoles()
+        {
+            if (ResidentGuild == null)
+            {
+                return;
+            }
+
+            // First add big quiet roles, then tiny quiet roles.
+            foreach (string roleName in settings.BigQuietRoles)
+            {
+                var sameNameRole = ResidentGuild.Roles.FirstOrDefault(x => x.Name == roleName);
+                if (sameNameRole == null)
+                {
+                    await ResidentGuild.CreateRoleAsync(roleName, null, settings.roleColor(roleName));
+                }
+            }
+
+            foreach (string roleName in settings.TinyQuietRoles)
+            {
+                var sameNameRole = ResidentGuild.Roles.FirstOrDefault(x => x.Name == roleName);
+                if (sameNameRole == null)
+                {
+                    await ResidentGuild.CreateRoleAsync(roleName, null, settings.roleColor(roleName));
+                }
+            }
+
+            // In the ordering, then come big loud roles and tiny loud roles.
+            foreach (string roleName in settings.BigLoudRoles)
+            {
+                var sameNameRole = ResidentGuild.Roles.FirstOrDefault(x => x.Name == roleName);
+                if (sameNameRole == null)
+                {
+                    await ResidentGuild.CreateRoleAsync(roleName, null, settings.roleColor(roleName));
+                }
+            }
+
+            foreach (string roleName in settings.TinyLoudRoles)
+            {
+                var sameNameRole = ResidentGuild.Roles.FirstOrDefault(x => x.Name == roleName);
+                if (sameNameRole == null)
+                {
+                    await ResidentGuild.CreateRoleAsync(roleName, null, settings.roleColor(roleName));
+                }
+            }
         }
 
         // Call UpdateRank() only when you hold the mutex to the internal dictionaries.
         private async Task UpdateRank(Discord.WebSocket.SocketGuildUser player, Tuple<string, string> playerInfo)
         {
+            // Ignore everything until ResidentGuild is set.
+            if (ResidentGuild == null)
+            {
+                return;
+            }
+
             try
             {
+                System.Console.WriteLine("Updating rank for player " + player.Nickname);
                 Tuple<int, int> rank = await GetCurrentRank(playerInfo.Item1, "EU", playerInfo.Item2);
+
+                // If We get reasonable information from the update, add new ranks to the player.
                 if (rank.Item1 != -1)
                 {
-                    // We got reasonable information from the update, add new ranks to the player.
                     await ClearAllRanks(player);
-                    await SetRanks(BoundGuild, player, rank);
+                    await SetQuietRanks(ResidentGuild, player, rank);
+
+                    if (!QuietPlayers.Contains(player.Id))
+                    {
+                        System.Console.WriteLine("The player is not quiet, we add the loud roles now.");
+                        await AddLoudRoles(player, ResidentGuild);
+                    }
                 }
             }
             catch (RankParsingException e)
@@ -263,11 +364,18 @@ namespace DiscordBot
 
         public async Task UpdateAll()
         {
+
+            // Ignore everything until ResidentGuild is set
+            if (ResidentGuild == null)
+            {
+                return;
+            }
+
             await Access.WaitAsync();
 
             foreach (KeyValuePair<ulong, Tuple<string, string>> entry in DiscordUplay)
             {
-                Discord.WebSocket.SocketGuildUser user = BoundGuild.Users.FirstOrDefault(x => x.Id == entry.Key);
+                Discord.WebSocket.SocketGuildUser user = ResidentGuild.Users.FirstOrDefault(x => x.Id == entry.Key);
 
                 if (user != null && !DoNotTrack.Contains(user.Id))
                 {
@@ -326,7 +434,28 @@ namespace DiscordBot
 
             Access.Release();
         }
+        public async Task ShushPlayer(ulong discordId)
+        {
+            await Access.WaitAsync();
+            if (!QuietPlayers.Contains(discordId))
+            {
+                QuietPlayers.Add(discordId);
+            }
+            Access.Release();
+        }
 
+        public async Task MakePlayerLoud(ulong discordId)
+        {
+            await Access.WaitAsync();
+            if (QuietPlayers.Contains(discordId))
+            {
+                QuietPlayers.Remove(discordId);
+            }
+            Access.Release();
+        }
+
+
+ 
         public async Task RunBotAsync()
         {
             client = new DiscordSocketClient();
@@ -340,7 +469,13 @@ namespace DiscordBot
             await client.LoginAsync(Discord.TokenType.Bot, Secret.botToken);
             await client.StartAsync();
             await client.SetGameAsync(settings.get_botStatus());
-            await Task.Delay(-1);
+            while (true)
+            {
+                await UpdateAll();
+                await BackupMappings();
+                await Task.Delay(TimeSpan.FromSeconds(60));
+            }
+            // await Task.Delay();
         }
         private Task Log(LogMessage arg)
         {
@@ -370,10 +505,9 @@ namespace DiscordBot
         }
 
 
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
-            new Bot().RunBotAsync().GetAwaiter().GetResult();
+            await new Bot().RunBotAsync();
         }
     }
-
 }

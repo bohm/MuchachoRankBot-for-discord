@@ -12,17 +12,49 @@ namespace DiscordBot
     public class Commands : ModuleBase<SocketCommandContext>
     {
 
-        [Command("MuchoRank")]
+
+        [Command("prikazy")]
         public async Task Info()
         {
-            await ReplyAsync("!rank NICK PLATFORM[PC, XBOX, PS4]");
+            await ReplyAsync(@"Uzitecne prikazy:
+!track UplayNick platforma -- Bot zacne sledovat vase uspechy a prideli vam vas aktualni rank. Mozne platformy jsou {pc, xbox, ps4}.
+!ticho -- Bot vam odstrani role, ktere jdou pingovat v mistnosti #hledame-spoluhrace.
+!nahlas -- Bot vam zapne zpet pingovatelne role.
+!chill -- Bot vas prestane trackovat, smaze vam ranky a nastavi vam roli Full Chill.");
         }
+
+        [Command("residence")]
+        public async Task Residence()
+        {
+            if (Bot.IsOperator(Context.Message.Author.Id) && Bot.Instance.ResidentGuild == null)
+            {
+                Bot.Instance.ResidentGuild = Context.Guild;
+                await ReplyAsync("Setting up residence in guild " + Context.Guild.Name + ".");
+            }
+        }
+        
+        [Command("populate")]
+        public async Task Populate()
+        {
+            if (Bot.Instance.ResidentGuild == null)
+            {
+                await ReplyAsync("R6RankBot has no set server as a residence, it cannot proceed.");
+            } else if (!Bot.IsOperator(Context.Message.Author.Id))
+            {
+                await ReplyAsync("This command needs operator privileges.");
+            } else
+            {
+                await Bot.Instance.PopulateRoles();
+            }
+        }
+
         [Command("ticho")]
         public async Task Quiet()
         {
             var Author = Context.Message.Author;
             var Guild = Context.Guild;
             await Bot.RemoveLoudRoles(Author, Guild);
+            await Bot.Instance.ShushPlayer(Author.Id);
             await ReplyAsync(Author.Username + ": Odted nebudete notifikovani, kdyz nekdo oznaci vasi roli. Poslete prikaz !nahlas pro zapnuti notifikaci.");
         }
 
@@ -32,6 +64,7 @@ namespace DiscordBot
             // Add the user to any mentionable rank roles.
             var Author = Context.Message.Author;
             var Guild = Context.Guild;
+            await Bot.Instance.MakePlayerLoud(Author.Id);
             await Bot.AddLoudRoles(Author, Guild);
             await ReplyAsync(Author.Username + ": Nyni budete notifikovani, kdyz nekdo zapne vasi roli.");
         }
@@ -39,8 +72,9 @@ namespace DiscordBot
         [Command("chill")]
         public async Task Chill()
         {
-            var Author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
-            // TODO: put user in the DoNotTrack DB.
+            var Author = (Discord.WebSocket.SocketGuildUser) Context.Message.Author;
+
+            await Bot.Instance.StopTracking(Author.Id);
             await Bot.ClearAllRanks(Author);
             var ChillRole = Context.Guild.Roles.FirstOrDefault(x => x.Name == settings.ChillRole);
             if (ChillRole != null)
@@ -49,9 +83,66 @@ namespace DiscordBot
             }
             await ReplyAsync(Author.Username + ": Uz nebudeme na tomto serveru sledovat vase ranky. Chill on!");
         }
+
+        [Command("track")]
+        public async Task Track(string nick, string platform)
+        {
+            var Author = (Discord.WebSocket.SocketGuildUser) Context.Message.Author;
+            try
+            {
+                Tuple<string, string> query = await Bot.Instance.QueryMapping(Author.Id);
+                if (query != null)
+                {
+                    await ReplyAsync(Author.Username + ": Vase uspechy uz sledujeme pod prezdivkou " + query.Item1 + ", nebudeme pridavat dalsi.");
+                    return;
+                }
+                // TODO: check validity of nick + platform, plus test if there is actually any rank under this nickname.
+                await Bot.Instance.InsertIntoMapping(Author.Id, nick, platform);
+                await ReplyAsync(Author.Username + ": Nove sledujeme vase uspechy pod prezdivkou " + nick + " na platforme " + platform + ".");
+            }
+            catch (DoNotTrackException)
+            {
+                await ReplyAsync(Author.Username + ": Jste Full Chill, vas rank aktualne nebudeme trackovat.");
+                return;
+            }
+ 
+
+        }
         
         [Command("rank")]
-        public async Task Rank(string Nick, string Platform)
+        public async Task Rank()
+        {
+            var author = (Discord.WebSocket.SocketGuildUser) Context.Message.Author;
+            Tuple<string, string> query = await Bot.Instance.QueryMapping(author.Id);
+
+            if (query == null)
+            {
+                await ReplyAsync(author.Username + ": Jste Full Chill, vas rank netrackujeme, tak nemuzeme slouzit.");
+                return;
+            }
+            else
+            {
+                try
+                {
+                    var RankTuple = await Bot.GetCurrentRank(query.Item1, "EU", query.Item2);
+                    if (RankTuple.Item2 != -1)
+                    {
+                        await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1] + " (presneji, " + settings.TinyLoudRoles[RankTuple.Item2] + ").");
+                    }
+                    else
+                    {
+                        await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1]);
+                    }
+                }
+                catch (RankParsingException)
+                {
+                    await ReplyAsync("Communication to the R6Tab server failed. Please try again or contact the Discord admins.");
+                }
+            }
+        }
+
+        [Command("oldrank")]
+        public async Task Oldrank(string Nick, string Platform)
         {
             try
             {
@@ -59,10 +150,10 @@ namespace DiscordBot
                 var RankTuple = await Bot.GetCurrentRank(Nick, "EU", Platform);
                 if (RankTuple.Item2 != -1)
                 {
-                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank jako " + settings.LoudBigRoles[RankTuple.Item1] + " plus " + settings.LoudTinyRoles[RankTuple.Item2]);
+                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1] + " plus " + settings.TinyLoudRoles[RankTuple.Item2]);
                 } else
                 {
-                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank jako " + settings.LoudBigRoles[RankTuple.Item1]);
+                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1]);
                 }
             } catch (RankParsingException)
             {
@@ -70,8 +161,8 @@ namespace DiscordBot
             }
         }
 
-        [Command("oldrank")]
-        public async Task Oldrank(string nick, string platform)
+        [Command("veryoldrank")]
+        public async Task Veryoldrank(string nick, string platform)
         {
             platform = platform.ToLower();
             switch (platform)
@@ -176,72 +267,6 @@ namespace DiscordBot
             else
             {
                 await ReplyAsync("Please, type the correct platform name");
-            }
-        }
-
-
-        [Command("settings")]
-        public async Task settingsCommands(string password)
-        {
-            if (settings.get_settingsPassword() == password) {
-                await Discord.UserExtensions.SendMessageAsync(Context.Message.Author, "!settings pass \nsetPass\nsetStatus\nsetLogFolder");
-            } else
-            {
-                await Discord.UserExtensions.SendMessageAsync(Context.Message.Author, "Wrong password");
-            }
-        }
-        [Command("settings")]
-        public async Task settingsInfo(string password, string command)
-        {
-            if (settings.get_settingsPassword() == password) {
-                switch (command) {
-                    case "setPass":
-                        await Discord.UserExtensions.SendMessageAsync(Context.Message.Author, "!settings pass setPass TEXT ===> " +
-                            "changes password to settings acess. \nDefault: [1234]");
-                        break;
-                    case "setStatus":
-                        await Discord.UserExtensions.SendMessageAsync(Context.Message.Author, "!settings pass setStatus TEXT ===> " +
-                            "changes bot status. \nDefault: [!rank]");
-                        break;
-                    case "setLogFolder":
-                        await Discord.UserExtensions.SendMessageAsync(Context.Message.Author, "!settings pass setLogFolder TEXT ===> " +
-                            "changes save folder for log. \nDefault: [...\\TEMP\\DiscordBotLog.txt] " +
-                            "\nPlease, type paths only: \n\ta) in english symbols in format \n\tb) in format [DISK:\\...\\]");
-                        break;
-                    default:
-                        await Discord.UserExtensions.SendMessageAsync(Context.Message.Author, "Wrong command name");
-                        break;
-                }
-                
-            } else
-            {
-                await Discord.UserExtensions.SendMessageAsync(Context.Message.Author, "Wrong password");
-            }
-        }
-        [Command("settings")]
-        public async Task settingsAction(string password, string action, string txt)
-        {
-            if (settings.get_settingsPassword() == password) {
-                switch (action)
-                {
-                    case "setPass":
-                        settings.set_settingsPassword(txt);
-                        Logger.LogMessageToFile(Context.User.Username+" set settings password to "+txt);
-                        break;
-                    case "setStatus":
-                        settings.set_botStatus(txt);
-                        Logger.LogMessageToFile(Context.User.Username + " set bot status to " + txt);
-                        break;
-                    case "setLogFolder":
-
-                        break;
-                    default:
-                        await Discord.UserExtensions.SendMessageAsync(Context.Message.Author, "Wrong action name");
-                        break;
-                }
-            } else
-            {
-                await Discord.UserExtensions.SendMessageAsync(Context.Message.Author, "Wrong password");
             }
         }
     }
