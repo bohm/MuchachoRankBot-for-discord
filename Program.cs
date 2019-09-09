@@ -58,7 +58,9 @@ namespace DiscordBot
         // Remove all rank roles from a user.
         public static async Task ClearAllRanks(Discord.WebSocket.SocketGuildUser User)
         {
-            foreach (var RankRole in User.Roles.Where(x => settings.BigLoudRoles.Contains(x.Name) || settings.TinyLoudRoles.Contains(x.Name) || settings.BigQuietRoles.Contains(x.Name) || settings.TinyQuietRoles.Contains(x.Name)))
+            foreach (var RankRole in User.Roles.Where(x => settings.BigLoudRoles.Contains(x.Name) || settings.TinyLoudRoles.Contains(x.Name)
+                                                        || settings.BigQuietRoles.Contains(x.Name) || settings.TinyQuietRoles.Contains(x.Name)
+                                                        || settings.ChillRole == x.Name))
             {
                 await User.RemoveRoleAsync(RankRole);
             }
@@ -305,16 +307,25 @@ namespace DiscordBot
             if (DiscordUplay == null)
             {
                 DiscordUplay = new Dictionary<ulong, Tuple<string, string>>();
+            } else
+            {
+                System.Console.WriteLine("Loaded " + DiscordUplay.Count + "discord -- uplay connections.");
             }
 
             if (DoNotTrack == null)
             {
                 DoNotTrack = new HashSet<ulong>();
+            } else
+            {
+                System.Console.WriteLine("Loaded " + DoNotTrack.Count + "do not track players.");
             }
 
             if (QuietPlayers == null)
             {
                 QuietPlayers = new HashSet<ulong>();
+            } else
+            {
+                System.Console.WriteLine("Loaded " + QuietPlayers.Count + "players who wish not to be pinged.");
             }
         }
 
@@ -469,6 +480,27 @@ namespace DiscordBot
             Access.Release();
         }
 
+        public async Task RemoveFromDatabases(ulong discordId)
+        {
+            await Access.WaitAsync();
+
+            if (DiscordUplay.ContainsKey(discordId))
+            {
+                DiscordUplay.Remove(discordId);
+            }
+
+            if (DoNotTrack.Contains(discordId))
+            {
+                DoNotTrack.Remove(discordId);
+            }
+
+            if (QuietPlayers.Contains(discordId))
+            {
+                QuietPlayers.Remove(discordId);
+            }
+
+            Access.Release();
+        }
         public async Task StopTracking(ulong discordId)
         {
             await Access.WaitAsync();
@@ -543,6 +575,7 @@ namespace DiscordBot
         {
             var message = arg as SocketUserMessage;
             if (message is null || message.Author.IsBot) return;
+            if (message.Channel.Name != settings.BotChannel) return; // Ignore all channels except the #rank channel.
             int argPos = 0;
 
             if (message.HasStringPrefix("!", ref argPos) || message.HasMentionPrefix(client.CurrentUser, ref argPos))

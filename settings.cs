@@ -5,6 +5,8 @@
         // IDs of: DoctorOrson, Kempik, GameOver.
         public static readonly ulong[] Operators = { 428263908281942038, 182174188323340289, 213681987561586693 };
         private static string botStatus = "Napiste !prikazy pro informace.";
+
+        public static readonly string BotChannel = "rank"; // The only channel the bot is operating in.
         private static string logFolder = null;
 
         public static string serializeFile = @"rsix.json";

@@ -20,7 +20,8 @@ namespace DiscordBot
 !track UplayNick platforma -- Bot zacne sledovat vase uspechy a prideli vam vas aktualni rank. Mozne platformy jsou {pc, xbox, ps4}.
 !ticho -- Bot vam odstrani role, ktere jdou pingovat v mistnosti #hledame-spoluhrace.
 !nahlas -- Bot vam zapne zpet pingovatelne role.
-!chill -- Bot vas prestane trackovat, smaze vam ranky a nastavi vam roli Full Chill.");
+!chill -- Bot vas prestane trackovat, smaze vam ranky a nastavi vam roli Full Chill.
+!reset -- Smaze vsechny rankove role a vsechny informace o vas z databaze, zacnete 's cistym stitem'.");
         }
 
         [Command("residence")]
@@ -82,6 +83,16 @@ namespace DiscordBot
                 await Author.AddRoleAsync(ChillRole);
             }
             await ReplyAsync(Author.Username + ": Uz nebudeme na tomto serveru sledovat vase ranky. Chill on!");
+        }
+
+        [Command("reset")]
+        public async Task Reset()
+        {
+            var Author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
+
+            await Bot.ClearAllRanks(Author);
+            await Bot.Instance.RemoveFromDatabases(Author.Id);
+            await ReplyAsync(Author.Username + ": Smazali jsme o vas vsechny informace. Muzete se nechat znovu trackovat.");
         }
 
         [Command("track")]
