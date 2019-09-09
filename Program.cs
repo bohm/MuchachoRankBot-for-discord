@@ -228,6 +228,42 @@ namespace DiscordBot
             }
         }
 
+        // Infers rank from the roles the player is currently in.
+        // Returns null when it could not figure the role.
+        public Tuple<int, int> InferRankFromRoles(Discord.WebSocket.SocketGuildUser player)
+        {
+            // If the player has a chill role, give up.
+            if (player.Roles.FirstOrDefault(x => x.Name == settings.ChillRole) != null)
+            {
+                System.Console.WriteLine("Found a Full Chill role, will not attempt to infer");
+                return null;
+            }
+
+            var bigRole = player.Roles.FirstOrDefault(x => settings.BigQuietRoles.Contains(x.Name));
+            if (bigRole == null)
+            {
+                return null;
+            }
+
+            int index = Array.IndexOf(settings.BigQuietRoles, bigRole.Name);
+            if (index == -1)
+            {
+                return null;
+            }
+
+            // At this point, we have inferred a big role. Try to infer a small role.
+
+            var tinyRole = player.Roles.FirstOrDefault(x => settings.TinyQuietRoles.Contains(x.Name));
+            if (tinyRole == null)
+            {
+                return new Tuple<int,int>(index, -1);
+            }
+
+            int tinyIndex = Array.IndexOf(settings.TinyQuietRoles, tinyRole.Name);
+
+            return new Tuple<int, int>(index, tinyIndex);
+        }
+
         public async Task BackupMappings()
         {
             await Access.WaitAsync();
@@ -339,14 +375,25 @@ namespace DiscordBot
                 return;
             }
 
-            try
-            {
-                System.Console.WriteLine("Updating rank for player " + player.Nickname);
-                Tuple<int, int> rank = await GetCurrentRank(playerInfo.Item1, "EU", playerInfo.Item2);
-
-                // If We get reasonable information from the update, add new ranks to the player.
-                if (rank.Item1 != -1)
+                try
                 {
+                    Tuple<int, int> rank = await GetCurrentRank(playerInfo.Item1, "EU", playerInfo.Item2);
+                    Tuple<int, int> rankRoles = InferRankFromRoles(player);
+                    if (rank.Item1 == -1)
+                    {
+                        // We were unsuccessful in parsing the rank for some reason, skip this player.
+                        System.Console.WriteLine("We could not parse the rank of player " + player.Nickname + ".");
+                    }
+
+                if (rankRoles == null || rankRoles.Item1 != rank.Item1 || rankRoles.Item2 != rank.Item2)
+                {
+                    if (rankRoles != null)
+                    {
+                        System.Console.WriteLine("Inferred ranks " + rankRoles.Item1 + "," + rankRoles.Item2 + " -- fetched ranks " + rank.Item1 + "," + rank.Item2 + ".");
+                    }
+                    // We get reasonable information from the update, add new ranks to the player.
+                    System.Console.WriteLine("Updating rank for player " + player.Nickname);
+
                     await ClearAllRanks(player);
                     await SetQuietRanks(ResidentGuild, player, rank);
 
@@ -355,11 +402,15 @@ namespace DiscordBot
                         System.Console.WriteLine("The player is not quiet, we add the loud roles now.");
                         await AddLoudRoles(player, ResidentGuild);
                     }
+                } else
+                {
+                    System.Console.WriteLine("Ranks match for player " + player.Nickname);
                 }
             }
-            catch (RankParsingException e)
-            {
-            }
+            catch (RankParsingException)
+                {
+                    System.Console.WriteLine("Failed to get rank for player " + player.Nickname);
+                }
         }
 
         public async Task UpdateAll()
@@ -473,7 +524,7 @@ namespace DiscordBot
             {
                 await UpdateAll();
                 await BackupMappings();
-                await Task.Delay(TimeSpan.FromSeconds(60));
+                await Task.Delay(TimeSpan.FromSeconds(30));
             }
             // await Task.Delay();
         }
