@@ -33,17 +33,19 @@ namespace DiscordBot
                 await ReplyAsync("Setting up residence in guild " + Context.Guild.Name + ".");
             }
         }
-        
+
         [Command("populate")]
         public async Task Populate()
         {
             if (Bot.Instance.ResidentGuild == null)
             {
                 await ReplyAsync("R6RankBot has no set server as a residence, it cannot proceed.");
-            } else if (!Bot.IsOperator(Context.Message.Author.Id))
+            }
+            else if (!Bot.IsOperator(Context.Message.Author.Id))
             {
                 await ReplyAsync("This command needs operator privileges.");
-            } else
+            }
+            else
             {
                 await Bot.Instance.PopulateRoles();
             }
@@ -73,7 +75,7 @@ namespace DiscordBot
         [Command("chill")]
         public async Task Chill()
         {
-            var Author = (Discord.WebSocket.SocketGuildUser) Context.Message.Author;
+            var Author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
 
             await Bot.Instance.StopTracking(Author.Id);
             await Bot.ClearAllRanks(Author);
@@ -98,44 +100,124 @@ namespace DiscordBot
         [Command("track")]
         public async Task Track(string nick, string platform)
         {
-            var Author = (Discord.WebSocket.SocketGuildUser) Context.Message.Author;
+            var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
             try
             {
-                Tuple<string, string> query = await Bot.Instance.QueryMapping(Author.Id);
-                if (query != null)
+                string queryR6ID = await Bot.Instance.QueryMapping(author.Id);
+                if (queryR6ID != null)
                 {
-                    await ReplyAsync(Author.Username + ": Vase uspechy uz sledujeme pod prezdivkou " + query.Item1 + ", nebudeme pridavat dalsi.");
+                    await ReplyAsync(author.Username + ": Vas discord ucet uz sledujeme. / We are already tracking your Discord account.");
                     return;
                 }
-                // TODO: check validity of nick + platform, plus test if there is actually any rank under this nickname.
-                await Bot.Instance.InsertIntoMapping(Author.Id, nick, platform);
-                await ReplyAsync(Author.Username + ": Nove sledujeme vase uspechy pod prezdivkou " + nick + " na platforme " + platform + ".");
+
+                string r6TabId = await Bot.GetR6TabId(nick, "EU", platform);
+
+                if (r6TabId == null)
+                {
+                    await ReplyAsync(author.Username + ": Nepodarilo se nam najit vas Uplay ucet. / We failed to find your Uplay account data.");
+                    return;
+                }
+                await Bot.Instance.InsertIntoMapping(author.Id, r6TabId);
+                await ReplyAsync(author.Username + ": nove sledujeme vase uspechy pod prezdivkou " + nick + " na platforme pc v EU. / We now track you as " + nick + "on pc in the EU.");
+
             }
             catch (DoNotTrackException)
             {
-                await ReplyAsync(Author.Username + ": Jste Full Chill, vas rank aktualne nebudeme trackovat.");
+                await ReplyAsync(author.Username + ": Jste Full Chill, vas rank aktualne nebudeme trackovat.");
                 return;
             }
- 
-
+            catch (RankParsingException)
+            {
+                await ReplyAsync("Communication to the R6Tab server failed. Please try again or contact the local Discord admins.");
+                return;
+            }
         }
-        
+
+        [Command("trackuser")]
+
+        public async Task TrackUser(string discordUsername, string nick)
+        {
+            if (Bot.Instance.ResidentGuild == null)
+            {
+                await ReplyAsync("R6RankBot has no set server as a residence, it cannot proceed.");
+                return;
+            }
+
+            if (!Bot.IsOperator(Context.Message.Author.Id))
+            {
+                await ReplyAsync("This command needs operator privileges.");
+                return;
+            }
+            else
+            {
+                var matchedUsers = Bot.Instance.ResidentGuild.Users.Where(x => x.Username == discordUsername);
+
+                if (matchedUsers.Count() == 0)
+                {
+                    await ReplyAsync("There is no user matching the Discord nickname " + discordUsername + ".");
+                    return;
+                }
+
+                if (matchedUsers.Count() > 1)
+                {
+                    await ReplyAsync("Two or more users have the same matching Discord nickname. This command cannot continue.");
+                    return;
+                }
+
+                Discord.WebSocket.SocketGuildUser rightUser = matchedUsers.First();
+            
+                if (rightUser != null)
+                {
+                    // TODO: Pasted here to be quick. Just refactor to have this as a function.
+                    try
+                    {
+                        string queryR6ID = await Bot.Instance.QueryMapping(rightUser.Id);
+                        if (queryR6ID != null)
+                        {
+                            await ReplyAsync(rightUser.Username + ": Vas discord ucet uz sledujeme. / We are already tracking your Discord account.");
+                            return;
+                        }
+
+                        string r6TabId = await Bot.GetR6TabId(nick, "EU", "pc");
+
+                        if (r6TabId == null)
+                        {
+                            await ReplyAsync(rightUser.Username + ": Nepodarilo se nam najit vas Uplay ucet. / We failed to find your Uplay account data.");
+                            return;
+                        }
+                        await Bot.Instance.InsertIntoMapping(rightUser.Id, r6TabId);
+                        await ReplyAsync(rightUser.Username + ": nove sledujeme vase uspechy pod prezdivkou " + nick + " na platforme pc v EU. / We now track you as " + nick + "on pc in the EU.");
+                    }
+                    catch (DoNotTrackException)
+                    {
+                        await ReplyAsync(rightUser.Username + ": Jste Full Chill, vas rank aktualne nebudeme trackovat.");
+                        return;
+                    }
+                    catch (RankParsingException)
+                    {
+                        await ReplyAsync("Communication to the R6Tab server failed. Please try again or contact the Discord admins.");
+                        return;
+                    }
+                }
+            }
+        }
+
         [Command("rank")]
         public async Task Rank()
         {
-            var author = (Discord.WebSocket.SocketGuildUser) Context.Message.Author;
-            Tuple<string, string> query = await Bot.Instance.QueryMapping(author.Id);
+            var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
+            string authorR6TabId = await Bot.Instance.QueryMapping(author.Id);
 
-            if (query == null)
+            if (authorR6TabId == null)
             {
-                await ReplyAsync(author.Username + ": Jste Full Chill, vas rank netrackujeme, tak nemuzeme slouzit.");
+                await ReplyAsync(author.Username + ": vas rank netrackujeme, tak nemuzeme slouzit.");
                 return;
             }
             else
             {
                 try
                 {
-                    var RankTuple = await Bot.GetCurrentRank(query.Item1, "EU", query.Item2);
+                    var RankTuple = await Bot.GetCurrentRank(authorR6TabId);
                     if (RankTuple.Item2 != -1)
                     {
                         await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1] + " (presneji, " + settings.TinyLoudRoles[RankTuple.Item2] + ").");
@@ -152,132 +234,54 @@ namespace DiscordBot
             }
         }
 
-        [Command("oldrank")]
-        public async Task Oldrank(string Nick, string Platform)
+        [Command("directrank")]
+        public async Task DirectRank(string nick, string platform)
         {
             try
             {
-                var Author = Context.Message.Author;
-                var RankTuple = await Bot.GetCurrentRank(Nick, "EU", Platform);
+                var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
+                string authorR6TabId = await Bot.GetR6TabId(nick, "EU", platform);
+                if (authorR6TabId == null)
+                {
+                    await ReplyAsync(author.Nickname + ": Nebyli jsme schopni nalezt tohoto uzivatele v databazi r6tab.com.");
+                    return;
+                }
+
+                var RankTuple = await Bot.GetCurrentRank(authorR6TabId);
                 if (RankTuple.Item2 != -1)
                 {
-                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1] + " plus " + settings.TinyLoudRoles[RankTuple.Item2]);
-                } else
-                {
-                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1]);
+                    await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1] + " plus " + settings.TinyLoudRoles[RankTuple.Item2]);
                 }
-            } catch (RankParsingException)
+                else
+                {
+                    await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1]);
+                }
+            }
+            catch (RankParsingException)
             {
                 await ReplyAsync("Communication to the R6Tab server failed. Please try again or contact the Discord admins.");
             }
         }
 
         [Command("veryoldrank")]
-        public async Task Veryoldrank(string nick, string platform)
+        public async Task VeryOldRank(string nick, string platform)
         {
-            platform = platform.ToLower();
-            switch (platform)
+            try
             {
-                case "pc":
-                    platform = "uplay";
-                    break;
-                case "xbox":
-                    platform = "xbl";
-                    break;
-                case "ps4":
-                    platform = "psn";
-                    break;
-                default:
-                    platform = null;
-                    break;
-            }
-            if (platform != null)
-            {
-                string url = "https://r6tab.com/api/search.php?platform=" + platform + "&search=" + nick;
-                HttpClient client = new HttpClient();
-                var response = await client.GetAsync(url);
-                string source = null;
-                if (response != null && response.StatusCode == HttpStatusCode.OK)
+                var Author = Context.Message.Author;
+                var RankTuple = await Bot.GetCurrentRank(nick, "EU", platform);
+                if (RankTuple.Item2 != -1)
                 {
-                    source = await response.Content.ReadAsStringAsync();
+                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1] + " plus " + settings.TinyLoudRoles[RankTuple.Item2]);
                 }
-                string subStringResult = "totalresults";
-                string test = source.Substring(source.IndexOf(subStringResult) + 14, 1);
-                if (Int32.Parse(test) != 0)
+                else
                 {
-                    string subStringId = "p_id";
-                    source = source.Substring(source.IndexOf(subStringId) + 7, 36);
-                    url = "https://r6tab.com/api/player.php?p_id=" + source;
-                    client = new HttpClient();
-                    response = await client.GetAsync(url);
-                    source = null;
-                    if (response != null && response.StatusCode == HttpStatusCode.OK)
-                    {
-                        source = await response.Content.ReadAsStringAsync();
-                    }
-                    string subStringCurRank = "p_currentrank";
-                    string subStringMaxRank = "p_maxrank";
-                    string p_currentrank = null;
-                    string p_maxrank = null;
-                    p_currentrank = source.Substring(source.IndexOf(subStringCurRank) + 15, 2);
-                    p_maxrank = source.Substring(source.IndexOf(subStringMaxRank) + 11, 2);
-                    string[] ranks = {"unrank",
-                            "Copper 4","Copper 3","Copper 2","Copper 1",
-                            "Bronze 4", "Bronze 3", "Bronze 2", "Bronze 1",
-                            "Silver 4", "Silver 3", "Silver 2", "Silver 1",
-                            "Gold 4", "Gold 3", "Gold 2", "Gold 1",
-                            "Platinum 3", "Platinum 2", "Platinum 1", "Diamond"};
-                    if(Regex.IsMatch(p_currentrank.Substring(1), ","))
-                    {
-                        p_currentrank = p_currentrank.Substring(0, 1);
-                    }
-                    if (Regex.IsMatch(p_maxrank.Substring(1), ","))
-                    {
-                        p_maxrank = p_maxrank.Substring(0, 1);
-                    }
-                    if (source != null)
-                    {
-                        string resultF = ranks[Int32.Parse(p_currentrank)];
-                        string result = ranks[Int32.Parse(p_maxrank)];
-                        var Builder = new EmbedBuilder();
-                        Builder.WithDescription("Your current rank is " + resultF + " \n" +
-                            "Your max rank is " + result + "\n New(or not new) role " + result);
-                        if (Regex.IsMatch(result.Substring(0), "C"))
-                            Builder.WithColor(0x995500);
-                        else if (Regex.IsMatch(result.Substring(0), "B"))
-                            Builder.WithColor(0xff9600);
-                        else if (Regex.IsMatch(result.Substring(0), "S"))
-                            Builder.WithColor(0x8c8c8c);
-                        else if (Regex.IsMatch(result.Substring(0), "G"))
-                            Builder.WithColor(0xffff00);
-                        else if (Regex.IsMatch(result.Substring(0), "P"))
-                            Builder.WithColor(0x00ffff);
-                        else if (Regex.IsMatch(result.Substring(0), "D"))
-                            Builder.WithColor(0x9900ff);
-                        await Context.Channel.SendMessageAsync("", false, Builder.Build());
-                        var user = Context.User;
-                        var role = Context.Guild.Roles.FirstOrDefault(x => x.Name.ToString() == result);
-                        for (int i = 0; i < ranks.Length; i++)
-                        {
-                            role = Context.Guild.Roles.FirstOrDefault(x => x.Name.ToString() == ranks[i]);
-                            await (user as IGuildUser).RemoveRoleAsync(role);
-                        }
-                        role = Context.Guild.Roles.FirstOrDefault(x => x.Name.ToString() == result);
-                        await (user as IGuildUser).AddRoleAsync(role);
-                        Logger.LogMessageToFile(user.Username+" get role/rank "+ result);
-                    }
-                    else
-                    {
-                        await ReplyAsync("ERR:nullSourceInfo");
-                    }
-                } else
-                {
-                    await ReplyAsync("Please, type the correct user nickname");
+                    await ReplyAsync(Author.Username + ": Aktualne vidime vas rank jako " + settings.BigLoudRoles[RankTuple.Item1]);
                 }
             }
-            else
+            catch (RankParsingException)
             {
-                await ReplyAsync("Please, type the correct platform name");
+                await ReplyAsync("Communication to the R6Tab server failed. Please try again or contact the Discord admins.");
             }
         }
     }

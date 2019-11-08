@@ -27,8 +27,8 @@ namespace DiscordBot
         private IServiceProvider services;
 
 
-        // The internal mapping between Discord names and Uplay (or xbox) names which we use to track ranks.
-        private Dictionary<ulong, Tuple<string, string>> DiscordUplay;
+        // The internal mapping between Discord names and R6TabIDs which we use to track ranks.
+        private Dictionary<ulong, string> DiscordUplay;
         // The internal mapping for people that should not be tracked.
         private HashSet<ulong> DoNotTrack;
         private HashSet<ulong> QuietPlayers;
@@ -141,6 +141,115 @@ namespace DiscordBot
                     }
                 }
             }
+        }
+
+        public static async Task<string> GetR6TabId(string nick, string region, string platform)
+        {
+            switch (platform.ToLower())
+            {
+                case "pc":
+                    platform = "uplay";
+                    break;
+                case "xbox":
+                    platform = "xbl";
+                    break;
+                case "ps4":
+                    platform = "psn";
+                    break;
+                default:
+                    platform = null;
+                    break;
+            }
+
+            if (platform == null)
+            {
+                throw new RankParsingException(); // TODO: IncorrectPlatformException
+            }
+
+            try
+            {
+                string url = "https://r6tab.com/api/search.php?platform=" + platform + "&search=" + nick;
+                HttpClient client = new HttpClient();
+                HttpResponseMessage response = await client.GetAsync(url);
+                string source = null;
+                if (response != null && response.StatusCode == HttpStatusCode.OK)
+                {
+                    source = await response.Content.ReadAsStringAsync();
+                }
+                string subStringResult = "totalresults";
+                string test = source.Substring(source.IndexOf(subStringResult) + 14, 1);
+                if (Int32.Parse(test) != 0)
+                {
+                    string subStringId = "p_id";
+                    string r6TabId = source.Substring(source.IndexOf(subStringId) + 7, 36);
+                    return r6TabId;
+                }
+                return null;
+            } catch  (TaskCanceledException)
+            {
+                throw new RankParsingException();
+            }
+        }
+
+        public static async Task<Tuple<int, int> > GetCurrentRank(string r6TabId)
+        {
+            try
+            {
+                if (r6TabId == null)
+                {
+                    throw new RankParsingException();
+                }
+
+                string url = "https://r6tab.com/api/player.php?p_id=" + r6TabId;
+                HttpClient client = new HttpClient();
+                var response = await client.GetAsync(url);
+                string source = null;
+                if (response != null && response.StatusCode == HttpStatusCode.OK)
+                {
+                    source = await response.Content.ReadAsStringAsync();
+                }
+
+                if (source == null)
+                {
+                    throw new RankParsingException();
+                }
+
+                string subStringCurRank = "p_currentrank";
+                string p_currentrank = null;
+                p_currentrank = source.Substring(source.IndexOf(subStringCurRank) + 15, 2);
+
+                if (Regex.IsMatch(p_currentrank.Substring(1), ","))
+                {
+                    p_currentrank = p_currentrank.Substring(0, 1);
+                }
+
+                if (p_currentrank == null || p_currentrank.Length == 0)
+                {
+                    throw new RankParsingException();
+                }
+
+                int TabRank = -1;
+                if (!Int32.TryParse(p_currentrank, out TabRank))
+                {
+                    throw new RankParsingException();
+                }
+
+                if (TabRank < 0 || TabRank >= settings.R6TabRanks.Length)
+                {
+                    throw new RankParsingException();
+                }
+
+                // Get the big role -- e.g. Copper.
+                int BigRole = settings.BigRoleFromRank(TabRank);
+                // Get the little role -- e.g. Copper 3. May be -1.
+                int TinyRole = settings.TinyRoleFromRank(TabRank);
+
+                return new Tuple<int, int>(BigRole, TinyRole);
+            } catch (TaskCanceledException)
+            {
+                throw new RankParsingException();
+            }
+ 
         }
 
         // TODO: Implement region.
@@ -293,7 +402,7 @@ namespace DiscordBot
                 {
                     StreamReader file = File.OpenText(settings.serializeFile);
                     JsonSerializer serializer = new JsonSerializer();
-                    DiscordUplay = (Dictionary<ulong, Tuple<string, string>>)serializer.Deserialize(file, typeof(Dictionary<ulong, Tuple<string, string>>));
+                    DiscordUplay = (Dictionary<ulong, string>)serializer.Deserialize(file, typeof(Dictionary<ulong, string>));
                     DoNotTrack = (HashSet<ulong>)serializer.Deserialize(file, typeof(HashSet<ulong>));
                     QuietPlayers = (HashSet<ulong>)serializer.Deserialize(file, typeof(HashSet<ulong>));
                     file.Close();
@@ -306,7 +415,7 @@ namespace DiscordBot
 
             if (DiscordUplay == null)
             {
-                DiscordUplay = new Dictionary<ulong, Tuple<string, string>>();
+                DiscordUplay = new Dictionary<ulong, string>();
             } else
             {
                 System.Console.WriteLine("Loaded " + DiscordUplay.Count + "discord -- uplay connections.");
@@ -378,7 +487,7 @@ namespace DiscordBot
         }
 
         // Call UpdateRank() only when you hold the mutex to the internal dictionaries.
-        private async Task UpdateRank(Discord.WebSocket.SocketGuildUser player, Tuple<string, string> playerInfo)
+        private async Task UpdateRank(Discord.WebSocket.SocketGuildUser player, string r6TabId)
         {
             // Ignore everything until ResidentGuild is set.
             if (ResidentGuild == null)
@@ -386,15 +495,15 @@ namespace DiscordBot
                 return;
             }
 
-                try
+            try
+            {
+                Tuple<int, int> rank = await GetCurrentRank(r6TabId);
+                Tuple<int, int> rankRoles = InferRankFromRoles(player);
+                if (rank.Item1 == -1)
                 {
-                    Tuple<int, int> rank = await GetCurrentRank(playerInfo.Item1, "EU", playerInfo.Item2);
-                    Tuple<int, int> rankRoles = InferRankFromRoles(player);
-                    if (rank.Item1 == -1)
-                    {
-                        // We were unsuccessful in parsing the rank for some reason, skip this player.
-                        System.Console.WriteLine("We could not parse the rank of player " + player.Nickname + ".");
-                    }
+                    // We were unsuccessful in parsing the rank for some reason, skip this player.
+                    System.Console.WriteLine("We could not parse the rank of player " + player.Nickname + ".");
+                }
 
                 if (rankRoles == null || rankRoles.Item1 != rank.Item1 || rankRoles.Item2 != rank.Item2)
                 {
@@ -403,7 +512,7 @@ namespace DiscordBot
                         System.Console.WriteLine("Inferred ranks " + rankRoles.Item1 + "," + rankRoles.Item2 + " -- fetched ranks " + rank.Item1 + "," + rank.Item2 + ".");
                     }
                     // We get reasonable information from the update, add new ranks to the player.
-                    System.Console.WriteLine("Updating rank for player " + player.Nickname);
+                    System.Console.WriteLine("Updating rank for player " + player.Username);
 
                     await ClearAllRanks(player);
                     await SetQuietRanks(ResidentGuild, player, rank);
@@ -413,15 +522,21 @@ namespace DiscordBot
                         System.Console.WriteLine("The player is not quiet, we add the loud roles now.");
                         await AddLoudRoles(player, ResidentGuild);
                     }
-                } else
+                }
+                else
                 {
-                    System.Console.WriteLine("Ranks match for player " + player.Nickname);
+                    // System.Console.WriteLine("Ranks match for player " + player.Username);
                 }
             }
             catch (RankParsingException)
-                {
-                    System.Console.WriteLine("Failed to get rank for player " + player.Nickname);
-                }
+            {
+                // System.Console.WriteLine("Failed to get rank for player " + player.Username);
+            }
+            catch (System.Net.Http.HttpRequestException)
+            {
+                System.Console.WriteLine("Network unrechable, delaying update.");
+                return;
+            }
         }
 
         public async Task UpdateAll()
@@ -434,31 +549,35 @@ namespace DiscordBot
             }
 
             await Access.WaitAsync();
+            System.Console.WriteLine("Updating player ranks.");
+            int count = 0;
 
-            foreach (KeyValuePair<ulong, Tuple<string, string>> entry in DiscordUplay)
+            foreach (KeyValuePair<ulong, string> entry in DiscordUplay)
             {
                 Discord.WebSocket.SocketGuildUser user = ResidentGuild.Users.FirstOrDefault(x => x.Id == entry.Key);
 
                 if (user != null && !DoNotTrack.Contains(user.Id))
                 {
                     await UpdateRank(user, entry.Value);
+                    count++;
                 }
                 // TODO: Possibly erase from the DB if the user IS null.
             }
+            System.Console.WriteLine("Checked or updated " + count + " users.");
             Access.Release();
         }
 
-        public async Task<Tuple<string, string>> QueryMapping(ulong discordId)
+        public async Task<string> QueryMapping(ulong discordId)
         {
             await Access.WaitAsync();
 
-            Tuple<string, string> UplayNick = null;
-            DiscordUplay.TryGetValue(discordId, out UplayNick);
+            string r6TabId = null;
+            DiscordUplay.TryGetValue(discordId, out r6TabId);
             Access.Release();
-            return UplayNick;
+            return r6TabId;
         }
 
-        public async Task InsertIntoMapping(ulong discordId, string uplayNick, string platform)
+        public async Task InsertIntoMapping(ulong discordId, string r6TabId)
         {
             await Access.WaitAsync();
 
@@ -474,8 +593,7 @@ namespace DiscordBot
                 throw new DuplicateException();
             }
 
-            Tuple<string, string> ins = new Tuple<string, string>(uplayNick, platform);
-            DiscordUplay[discordId] = ins;
+            DiscordUplay[discordId] = r6TabId;
 
             Access.Release();
         }
@@ -575,7 +693,7 @@ namespace DiscordBot
         {
             var message = arg as SocketUserMessage;
             if (message is null || message.Author.IsBot) return;
-            if (message.Channel.Name != settings.BotChannel) return; // Ignore all channels except the #rank channel.
+            if (!settings.BotChannels.Contains(message.Channel.Name)) return; // Ignore all channels except the allowed channel.
             int argPos = 0;
 
             if (message.HasStringPrefix("!", ref argPos) || message.HasMentionPrefix(client.CurrentUser, ref argPos))
