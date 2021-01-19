@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using System.Text;
 
-namespace DiscordBot
+namespace R6RankBot
 {
     class Logger
     {

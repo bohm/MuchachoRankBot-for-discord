@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DiscordBot
+namespace R6RankBot
 {
     public class RankParsingException : Exception
     {

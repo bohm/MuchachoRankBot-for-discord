@@ -14,7 +14,7 @@ using System.Net.Http;
 using System.Collections.Generic;
 using System.IO;
 
-namespace DiscordBot
+namespace R6RankBot
 {
     class Bot
     {
@@ -25,10 +25,12 @@ namespace DiscordBot
         private DiscordSocketClient client;
         private CommandService commands;
         private IServiceProvider services;
+        private bool initComplete = false;
 
-
-        // The internal mapping between Discord names and R6TabIDs which we use to track ranks.
+        // The internal mapping between Discord names and R6TabIDs which we use to track ranks. Persists via backups.
         private Dictionary<ulong, string> DiscordUplay;
+        // The internal data about ranks of Discord users. Does not persist on shutdown.
+        private Dictionary<ulong, Rank> DiscordRanks;
         // The internal mapping for people that should not be tracked.
         private HashSet<ulong> DoNotTrack;
         private HashSet<ulong> QuietPlayers;
@@ -58,321 +60,103 @@ namespace DiscordBot
         // Remove all rank roles from a user.
         public static async Task ClearAllRanks(Discord.WebSocket.SocketGuildUser User)
         {
-            foreach (var RankRole in User.Roles.Where(x => settings.BigLoudRoles.Contains(x.Name) || settings.TinyLoudRoles.Contains(x.Name)
-                                                        || settings.BigQuietRoles.Contains(x.Name) || settings.TinyQuietRoles.Contains(x.Name)
-                                                        || settings.ChillRole == x.Name))
+            System.Console.WriteLine("Removing all ranks from user " + User.Username);
+            foreach (var RankRole in User.Roles.Where(x => Ranking.LoudMetalRoles.Contains(x.Name) || Ranking.LoudDigitRoles.Contains(x.Name)
+                                                        || Ranking.SpectralMetalRoles.Contains(x.Name) || Ranking.SpectralDigitRoles.Contains(x.Name)
+                                                        || Ranking.ChillRole == x.Name))
             {
                 await User.RemoveRoleAsync(RankRole);
             }
         }
-
-        // Add a specific rank to a user.
-        // Only sets up quiet ranks -- if you want to set up all ranks, call AddLoudRoles() afterwards.
-        public static async Task SetQuietRanks(Discord.WebSocket.SocketGuild guild, Discord.WebSocket.SocketGuildUser user, Tuple<int, int> roles)
-        {
-            // The big role should never be -1, but we still check it.
-            if (roles.Item1 != -1)
-            {
-                string quietBigName = settings.BigQuietRoles[roles.Item1];
-                var quietBigRole = guild.Roles.FirstOrDefault(x => x.Name == quietBigName);
-
-                if (quietBigRole != null)
-                {
-                    await user.AddRoleAsync(quietBigRole);
-                }
-            }
-
-            // The tiny role can be -1 (Unranked, Diamond, ...).
-            if (roles.Item2 != -1)
-            {
-                string quietTinyName = settings.TinyQuietRoles[roles.Item2];
-                var quietTinyRole = guild.Roles.FirstOrDefault(x => x.Name == quietTinyName);
-
-                if (quietTinyRole != null)
-                {
-                    await user.AddRoleAsync(quietTinyRole);
-                }
-            }
-        }
-
-        public static async Task RemoveLoudRoles(Discord.WebSocket.SocketUser Author, Discord.WebSocket.SocketGuild Guild)
+  
+        public static async Task RemoveLoudRoles(Discord.WebSocket.SocketGuild Guild, Discord.WebSocket.SocketUser Author)
         {
             // If the user is in any mentionable rank roles, they will be removed.
             var Us = (Discord.WebSocket.SocketGuildUser)Author;
             // For each loud role, which can be a loud big role or a loud tiny role:
-            foreach (var LoudRole in Us.Roles.Where(x => settings.BigLoudRoles.Contains(x.Name) || settings.TinyLoudRoles.Contains(x.Name)))
+            foreach (var LoudRole in Us.Roles.Where(x => Ranking.LoudDigitRoles.Contains(x.Name) || Ranking.LoudMetalRoles.Contains(x.Name)))
             {
                 await Us.RemoveRoleAsync(LoudRole);
             }
         }
 
-        public static async Task AddLoudRoles(Discord.WebSocket.SocketUser Author, Discord.WebSocket.SocketGuild Guild)
+        public static async Task AddLoudRoles(Discord.WebSocket.SocketGuild Guild, Discord.WebSocket.SocketUser Author, Rank rank)
         {
             var Us = (Discord.WebSocket.SocketGuildUser)Author;
 
-            // First add big roles;
-            foreach (var QuietRole in Us.Roles.Where(x => settings.BigQuietRoles.Contains(x.Name)))
+            // First add the non-digit role.
+            string nonDigitLoudName = rank.CompactMetalPrint();
+            var LoudRole = Guild.Roles.FirstOrDefault(x => x.Name == nonDigitLoudName);
+            if (LoudRole != null)
             {
-                int index = RoleNameIndex(QuietRole.Name, settings.BigQuietRoles);
-                if (index != -1)
-                {
-                    string Corresponding = settings.BigLoudRoles[index];
-                    var LoudRole = Guild.Roles.FirstOrDefault(x => x.Name == Corresponding);
-                    if (LoudRole != null)
-                    {
-                        System.Console.WriteLine("Adding role " + LoudRole.Name);
-                        await Us.AddRoleAsync(LoudRole);
-                    }
-                }
+                await Us.AddRoleAsync(LoudRole);
             }
 
-            // Then add tiny roles.
-            foreach (var QuietRole in Us.Roles.Where(x => settings.TinyQuietRoles.Contains(x.Name)))
+            // Then, if the rank has a digit role, add that too.
+            if (rank.Digits())
             {
-                int index = RoleNameIndex(QuietRole.Name, settings.TinyQuietRoles);
-                if (index != -1)
+                string digitLoudName = rank.CompactFullPrint();
+                var LoudDigitRole = Guild.Roles.FirstOrDefault(x => x.Name == digitLoudName);
+                if (LoudDigitRole != null)
                 {
-                    string Corresponding = settings.TinyLoudRoles[index];
-                    var LoudRole = Guild.Roles.FirstOrDefault(x => x.Name == Corresponding);
-                    if (LoudRole != null)
-                    {
-                        System.Console.WriteLine("Adding role " + LoudRole.Name);
-                        await Us.AddRoleAsync(LoudRole);
-                    }
+                    await Us.AddRoleAsync(LoudDigitRole);
                 }
             }
         }
 
-        public static async Task<string> GetR6TabId(string nick, string region, string platform)
+        public static async Task AddSpectralRoles(Discord.WebSocket.SocketGuild Guild, Discord.WebSocket.SocketUser Author, Rank rank)
         {
-            switch (platform.ToLower())
+            var Us = (Discord.WebSocket.SocketGuildUser)Author;
+
+            // First add the non-digit role.
+            string nonDigitSpectralName = rank.SpectralMetalPrint();
+            var spectralRole = Guild.Roles.FirstOrDefault(x => x.Name == nonDigitSpectralName);
+            if (spectralRole != null)
             {
-                case "pc":
-                    platform = "uplay";
-                    break;
-                case "xbox":
-                    platform = "xbl";
-                    break;
-                case "ps4":
-                    platform = "psn";
-                    break;
-                default:
-                    platform = null;
-                    break;
+                await Us.AddRoleAsync(spectralRole);
             }
 
-            if (platform == null)
+            // Then, if the rank has a digit role, add that too.
+            if (rank.Digits())
             {
-                throw new RankParsingException(); // TODO: IncorrectPlatformException
-            }
-
-            try
-            {
-                string url = "https://r6tab.com/api/search.php?platform=" + platform + "&search=" + nick;
-                HttpClient client = new HttpClient();
-                HttpResponseMessage response = await client.GetAsync(url);
-                string source = null;
-                if (response != null && response.StatusCode == HttpStatusCode.OK)
+                string digitSpectralName = rank.SpectralFullPrint();
+                var digitSpectralRole = Guild.Roles.FirstOrDefault(x => x.Name == digitSpectralName);
+                if (digitSpectralRole != null)
                 {
-                    source = await response.Content.ReadAsStringAsync();
+                    await Us.AddRoleAsync(digitSpectralRole);
                 }
-                string subStringResult = "totalresults";
-                string test = source.Substring(source.IndexOf(subStringResult) + 14, 1);
-                if (Int32.Parse(test) != 0)
-                {
-                    string subStringId = "p_id";
-                    string r6TabId = source.Substring(source.IndexOf(subStringId) + 7, 36);
-                    return r6TabId;
-                }
-                return null;
-            } catch  (TaskCanceledException)
-            {
-                throw new RankParsingException();
             }
         }
 
-        public static async Task<Tuple<int, int> > GetCurrentRank(string r6TabId)
+        public static async Task<Rank> GetCurrentRank(string R6TabID)
         {
-            try
+            R6TabDataSnippet data = await TRNHttpProvider.GetData(R6TabID);
+            Rank r = data.ToRank();
+            return r;
+        }
+        // --- End of static section. ---
+
+        public async Task CleanSlate()
+        {
+            if (ResidentGuild == null)
             {
-                if (r6TabId == null)
-                {
-                    throw new RankParsingException();
-                }
-
-                string url = "https://r6tab.com/api/player.php?p_id=" + r6TabId;
-                HttpClient client = new HttpClient();
-                var response = await client.GetAsync(url);
-                string source = null;
-                if (response != null && response.StatusCode == HttpStatusCode.OK)
-                {
-                    source = await response.Content.ReadAsStringAsync();
-                }
-
-                if (source == null)
-                {
-                    throw new RankParsingException();
-                }
-
-                string subStringCurRank = "p_currentrank";
-                string p_currentrank = null;
-                p_currentrank = source.Substring(source.IndexOf(subStringCurRank) + 15, 2);
-
-                if (Regex.IsMatch(p_currentrank.Substring(1), ","))
-                {
-                    p_currentrank = p_currentrank.Substring(0, 1);
-                }
-
-                if (p_currentrank == null || p_currentrank.Length == 0)
-                {
-                    throw new RankParsingException();
-                }
-
-                int TabRank = -1;
-                if (!Int32.TryParse(p_currentrank, out TabRank))
-                {
-                    throw new RankParsingException();
-                }
-
-                if (TabRank < 0 || TabRank >= settings.R6TabRanks.Length)
-                {
-                    throw new RankParsingException();
-                }
-
-                // Get the big role -- e.g. Copper.
-                int BigRole = settings.BigRoleFromRank(TabRank);
-                // Get the little role -- e.g. Copper 3. May be -1.
-                int TinyRole = settings.TinyRoleFromRank(TabRank);
-
-                return new Tuple<int, int>(BigRole, TinyRole);
-            } catch (TaskCanceledException)
-            {
-                throw new RankParsingException();
+                return;
             }
- 
+
+            foreach (SocketGuildUser user in ResidentGuild.Users)
+            {
+                await ClearAllRanks(user);
+            }
+
+            System.Console.WriteLine("The slate is now clean, no users have roles.");
+            initComplete = true;
         }
 
-        // TODO: Implement region.
-        public static async Task<Tuple<int, int>> GetCurrentRank(string Nick, string Region, string Platform)
+        public async Task AddLoudRoles(Discord.WebSocket.SocketGuild Guild, Discord.WebSocket.SocketUser Author)
         {
-            switch (Platform.ToLower())
-            {
-                case "pc":
-                    Platform = "uplay";
-                    break;
-                case "xbox":
-                    Platform = "xbl";
-                    break;
-                case "ps4":
-                    Platform = "psn";
-                    break;
-                default:
-                    Platform = null;
-                    break;
-            }
-
-            if (Platform == null)
-            {
-                throw new RankParsingException(); // TODO: IncorrectPlatformException
-            }
-
-            string url = "https://r6tab.com/api/search.php?platform=" + Platform + "&search=" + Nick;
-            HttpClient client = new HttpClient();
-            var response = await client.GetAsync(url);
-            string source = null;
-            if (response != null && response.StatusCode == HttpStatusCode.OK)
-            {
-                source = await response.Content.ReadAsStringAsync();
-            }
-
-            string subStringResult = "totalresults";
-            string test = source.Substring(source.IndexOf(subStringResult) + 14, 1);
-            if (Int32.Parse(test) != 0)
-            {
-                string subStringId = "p_id";
-                source = source.Substring(source.IndexOf(subStringId) + 7, 36);
-                url = "https://r6tab.com/api/player.php?p_id=" + source;
-                client = new HttpClient();
-                response = await client.GetAsync(url);
-                source = null;
-                if (response != null && response.StatusCode == HttpStatusCode.OK)
-                {
-                    source = await response.Content.ReadAsStringAsync();
-                }
-                string subStringCurRank = "p_currentrank";
-                string p_currentrank = null;
-                p_currentrank = source.Substring(source.IndexOf(subStringCurRank) + 15, 2);
-
-                if (Regex.IsMatch(p_currentrank.Substring(1), ","))
-                {
-                    p_currentrank = p_currentrank.Substring(0, 1);
-                }
-
-                if (source != null)
-                {
-                    int TabRank = -1;
-                    if (!Int32.TryParse(p_currentrank, out TabRank))
-                    {
-                        throw new RankParsingException();
-                    }
-
-                    if (TabRank < 0 || TabRank >= settings.R6TabRanks.Length)
-                    {
-                        throw new RankParsingException();
-                    }
-
-                    // Get the big role -- e.g. Copper.
-                    int BigRole = settings.BigRoleFromRank(TabRank);
-                    // Get the little role -- e.g. Copper 3. May be -1.
-                    int TinyRole = settings.TinyRoleFromRank(TabRank);
-
-                    return new Tuple<int, int>(BigRole, TinyRole);
-                }
-                else
-                {
-                    throw new RankParsingException();
-                }
-            }
-            else
-            {
-                throw new RankParsingException();
-            }
-        }
-
-        // Infers rank from the roles the player is currently in.
-        // Returns null when it could not figure the role.
-        public Tuple<int, int> InferRankFromRoles(Discord.WebSocket.SocketGuildUser player)
-        {
-            // If the player has a chill role, give up.
-            if (player.Roles.FirstOrDefault(x => x.Name == settings.ChillRole) != null)
-            {
-                System.Console.WriteLine("Found a Full Chill role, will not attempt to infer");
-                return null;
-            }
-
-            var bigRole = player.Roles.FirstOrDefault(x => settings.BigQuietRoles.Contains(x.Name));
-            if (bigRole == null)
-            {
-                return null;
-            }
-
-            int index = Array.IndexOf(settings.BigQuietRoles, bigRole.Name);
-            if (index == -1)
-            {
-                return null;
-            }
-
-            // At this point, we have inferred a big role. Try to infer a small role.
-
-            var tinyRole = player.Roles.FirstOrDefault(x => settings.TinyQuietRoles.Contains(x.Name));
-            if (tinyRole == null)
-            {
-                return new Tuple<int,int>(index, -1);
-            }
-
-            int tinyIndex = Array.IndexOf(settings.TinyQuietRoles, tinyRole.Name);
-
-            return new Tuple<int, int>(index, tinyIndex);
+            ulong DiscordID = Author.Id;
+            Rank r = await QueryRank(DiscordID);
+            await AddLoudRoles(Guild, Author, r);
         }
 
         public async Task BackupMappings()
@@ -393,6 +177,7 @@ namespace DiscordBot
         public Bot()
         {
             Instance = this;
+            DiscordRanks = new Dictionary<ulong, Rank>();
             Access = new SemaphoreSlim(1, 1);
 
             // Try to deserialize the backup file first; if not found, initialize new structures.
@@ -418,7 +203,7 @@ namespace DiscordBot
                 DiscordUplay = new Dictionary<ulong, string>();
             } else
             {
-                System.Console.WriteLine("Loaded " + DiscordUplay.Count + "discord -- uplay connections.");
+                System.Console.WriteLine("Loaded " + DiscordUplay.Count + " discord -- uplay connections.");
             }
 
             if (DoNotTrack == null)
@@ -426,7 +211,7 @@ namespace DiscordBot
                 DoNotTrack = new HashSet<ulong>();
             } else
             {
-                System.Console.WriteLine("Loaded " + DoNotTrack.Count + "do not track players.");
+                System.Console.WriteLine("Loaded " + DoNotTrack.Count + " do not track players.");
             }
 
             if (QuietPlayers == null)
@@ -434,7 +219,24 @@ namespace DiscordBot
                 QuietPlayers = new HashSet<ulong>();
             } else
             {
-                System.Console.WriteLine("Loaded " + QuietPlayers.Count + "players who wish not to be pinged.");
+                System.Console.WriteLine("Loaded " + QuietPlayers.Count + " players who wish not to be pinged.");
+            }
+
+            // Query R6Tab to populate DiscordRanks.
+
+            foreach (var (discordID, uplayID) in DiscordUplay)
+            {
+                try
+                {
+                    R6TabDataSnippet data = TRNHttpProvider.UpdateAndGetData(uplayID).Result;
+                    Rank fetchedRank = data.ToRank();
+                    DiscordRanks[discordID] = data.ToRank();
+                    System.Console.WriteLine("Discord user " + discordID + " is fetched to have rank " + data.ToRank().FullPrint());
+                }
+                catch (RankParsingException)
+                {
+                    System.Console.WriteLine("Failed to set rank (first run) for player " + discordID);
+                }
             }
         }
 
@@ -447,47 +249,50 @@ namespace DiscordBot
                 return;
             }
 
-            // First add big quiet roles, then tiny quiet roles.
-            foreach (string roleName in settings.BigQuietRoles)
+            // First add spectral metal roles, then spectral digit roles.
+            foreach (string roleName in Ranking.SpectralMetalRoles)
             {
                 var sameNameRole = ResidentGuild.Roles.FirstOrDefault(x => x.Name == roleName);
                 if (sameNameRole == null)
                 {
+                    System.Console.WriteLine("Populating role " + roleName);
                     await ResidentGuild.CreateRoleAsync(roleName, null, settings.roleColor(roleName));
                 }
             }
 
-            foreach (string roleName in settings.TinyQuietRoles)
+            foreach (string roleName in Ranking.SpectralDigitRoles)
             {
                 var sameNameRole = ResidentGuild.Roles.FirstOrDefault(x => x.Name == roleName);
                 if (sameNameRole == null)
                 {
+                    System.Console.WriteLine("Populating role " + roleName);
                     await ResidentGuild.CreateRoleAsync(roleName, null, settings.roleColor(roleName));
                 }
             }
 
             // In the ordering, then come big loud roles and tiny loud roles.
-            foreach (string roleName in settings.BigLoudRoles)
+            foreach (string roleName in Ranking.LoudMetalRoles)
             {
                 var sameNameRole = ResidentGuild.Roles.FirstOrDefault(x => x.Name == roleName);
                 if (sameNameRole == null)
                 {
+                    System.Console.WriteLine("Populating role " + roleName);
                     await ResidentGuild.CreateRoleAsync(roleName, null, settings.roleColor(roleName));
                 }
             }
 
-            foreach (string roleName in settings.TinyLoudRoles)
+            foreach (string roleName in Ranking.LoudDigitRoles)
             {
                 var sameNameRole = ResidentGuild.Roles.FirstOrDefault(x => x.Name == roleName);
                 if (sameNameRole == null)
                 {
+                    System.Console.WriteLine("Populating role " + roleName);
                     await ResidentGuild.CreateRoleAsync(roleName, null, settings.roleColor(roleName));
                 }
             }
         }
 
-        // Call UpdateRank() only when you hold the mutex to the internal dictionaries.
-        private async Task UpdateRank(Discord.WebSocket.SocketGuildUser player, string r6TabId)
+        public async Task UpdateRoles(ulong discordID, Rank newRank)
         {
             // Ignore everything until ResidentGuild is set.
             if (ResidentGuild == null)
@@ -495,33 +300,65 @@ namespace DiscordBot
                 return;
             }
 
+            SocketGuildUser player = ResidentGuild.Users.FirstOrDefault(x => x.Id == discordID);
+            if (player == null)
+            {
+                // The player probably left the Discord guild. Just continue for now.
+                throw new RankParsingException();
+            }
+
+            await ClearAllRanks(player);
+
+            if (QuietPlayers.Contains(player.Id))
+            {
+                Console.WriteLine("Updating spectral roles only for player " + player.Username);
+                await AddSpectralRoles(ResidentGuild, player, newRank);
+            }
+            else
+            {
+                Console.WriteLine("Updating all roles only for player " + player.Username);
+                await AddSpectralRoles(ResidentGuild, player, newRank);
+                await AddLoudRoles(ResidentGuild, player, newRank);
+            }
+        }
+
+        // Call RefreshRank() only when you hold the mutex to the internal dictionaries.
+        private async Task RefreshRank(ulong discordID, string r6TabID)
+        {
+            // Ignore everything until ResidentGuild is set.
+            if (ResidentGuild == null)
+            {
+                return;
+            }
+
+            // Discord.WebSocket.SocketGuildUser user = ResidentGuild.Users.FirstOrDefault(x => x.Id == entry.Key);
             try
             {
-                Tuple<int, int> rank = await GetCurrentRank(r6TabId);
-                Tuple<int, int> rankRoles = InferRankFromRoles(player);
-                if (rank.Item1 == -1)
+                R6TabDataSnippet data = await TRNHttpProvider.UpdateAndGetData(r6TabID);
+                Rank fetchedRank = data.ToRank();
+
+                bool updateRequired = true;
+                if (DiscordRanks.ContainsKey(discordID))
                 {
-                    // We were unsuccessful in parsing the rank for some reason, skip this player.
-                    System.Console.WriteLine("We could not parse the rank of player " + player.Nickname + ".");
+                    Rank curRank = DiscordRanks[discordID];
+                    if (curRank.Equals(fetchedRank))
+                    {
+                        updateRequired = false;
+                    }
+                    else
+                    {
+                        Console.WriteLine("The fetched rank and the stored rank disagree for the user " + discordID);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("The user with DiscordID " + discordID + " is not yet in the database of ranks.");
                 }
 
-                if (rankRoles == null || rankRoles.Item1 != rank.Item1 || rankRoles.Item2 != rank.Item2)
+                if (updateRequired)
                 {
-                    if (rankRoles != null)
-                    {
-                        System.Console.WriteLine("Inferred ranks " + rankRoles.Item1 + "," + rankRoles.Item2 + " -- fetched ranks " + rank.Item1 + "," + rank.Item2 + ".");
-                    }
-                    // We get reasonable information from the update, add new ranks to the player.
-                    System.Console.WriteLine("Updating rank for player " + player.Username);
-
-                    await ClearAllRanks(player);
-                    await SetQuietRanks(ResidentGuild, player, rank);
-
-                    if (!QuietPlayers.Contains(player.Id))
-                    {
-                        System.Console.WriteLine("The player is not quiet, we add the loud roles now.");
-                        await AddLoudRoles(player, ResidentGuild);
-                    }
+                    await InsertIntoRanks(discordID, fetchedRank);
+                    await UpdateRoles(discordID, fetchedRank);
                 }
                 else
                 {
@@ -530,37 +367,97 @@ namespace DiscordBot
             }
             catch (RankParsingException)
             {
-                // System.Console.WriteLine("Failed to get rank for player " + player.Username);
+                Console.WriteLine("Failed to update rank for player " + discordID);
             }
             catch (System.Net.Http.HttpRequestException)
             {
-                System.Console.WriteLine("Network unrechable, delaying update.");
+                Console.WriteLine("Network unrechable, delaying update.");
                 return;
             }
         }
 
-        public async Task UpdateAll()
+        public async Task RoleInit()
+        { 
+            await Access.WaitAsync();
+            int updates = 0;
+            int preserved = 0;
+
+            foreach (var (discordID, uplayID) in DiscordUplay)
+            {
+                SocketGuildUser player = ResidentGuild.Users.FirstOrDefault(x => x.Id == discordID);
+                if (player == null)
+                {
+                    continue;
+                }
+
+                List<string> allRoles = player.Roles.Select(x => x.Name).ToList();
+                Rank guessedRank = Ranking.GuessRank(allRoles);
+                Rank queriedRank = DiscordRanks[discordID];
+
+                if (!guessedRank.Equals(queriedRank))
+                {
+                    try
+                    {
+                        Console.WriteLine("Guessed and queried rank do not match, guessed: (" + guessedRank.FullPrint() + "," + guessedRank.level + "), queried: (" + queriedRank.FullPrint() + "," + queriedRank.level + ")");
+                        await UpdateRoles(discordID, queriedRank);
+                    }
+                    catch (RankParsingException)
+                    {
+                        Console.WriteLine("Failed to fix mismatch for Discord user " + discordID);
+                    }
+                    updates++;
+                }
+                else
+                {
+                    preserved++;
+                }
+                // TODO: Possibly erase from the DB if the user IS null.
+            }
+            System.Console.WriteLine("Bootstrap: " + updates + " players have their roles updated, " + preserved + "have the same roles.");
+            Access.Release();
+            initComplete = true;
+        }
+
+    public async Task<bool> UpdateOne(ulong discordId)
+    {
+        // Ignore everything until ResidentGuild is set
+        if (ResidentGuild == null || !initComplete)
+        {
+            return false;
+        }
+
+        await Access.WaitAsync();
+
+        if (!DiscordUplay.ContainsKey(discordId))
+        {
+            return false;
+        }
+
+        string uplayId = DiscordUplay[discordId];
+        await RefreshRank(discordId, uplayId);
+
+        Access.Release();
+
+        return true;
+    }   
+
+    public async Task UpdateAll()
         {
 
             // Ignore everything until ResidentGuild is set
-            if (ResidentGuild == null)
+            if (ResidentGuild == null || !initComplete)
             {
                 return;
             }
 
             await Access.WaitAsync();
-            System.Console.WriteLine("Updating player ranks.");
+            System.Console.WriteLine("Updating player ranks (period:" + settings.updatePeriod.ToString() + ").");
             int count = 0;
 
             foreach (KeyValuePair<ulong, string> entry in DiscordUplay)
             {
-                Discord.WebSocket.SocketGuildUser user = ResidentGuild.Users.FirstOrDefault(x => x.Id == entry.Key);
-
-                if (user != null && !DoNotTrack.Contains(user.Id))
-                {
-                    await UpdateRank(user, entry.Value);
-                    count++;
-                }
+                await RefreshRank(entry.Key, entry.Value);
+                count++;
                 // TODO: Possibly erase from the DB if the user IS null.
             }
             System.Console.WriteLine("Checked or updated " + count + " users.");
@@ -594,9 +491,38 @@ namespace DiscordBot
             }
 
             DiscordUplay[discordId] = r6TabId;
-
             Access.Release();
         }
+
+        public async Task<Rank> QueryRank(ulong DiscordID)
+        {
+            await Access.WaitAsync();
+            Rank r;
+            DiscordRanks.TryGetValue(DiscordID, out r);
+            Access.Release();
+            return r;
+        }
+        /// <summary>
+        /// Inserts into the DiscordRanks internal dictionary of mapping from
+        /// ids to ranks. Only call when having access to the database.
+        /// </summary>
+        /// <param name="discordID"></param>
+        /// <param name="r"></param>
+        /// <returns></returns>
+        public async Task InsertIntoRanks(ulong discordID, Rank r)
+        {
+            // await Access.WaitAsync();
+
+            if (DoNotTrack.Contains(discordID))
+            {
+                // Access.Release();
+                throw new DoNotTrackException();
+            }
+
+            DiscordRanks[discordID] = r;
+            // Access.Release();
+        }
+
 
         public async Task RemoveFromDatabases(ulong discordId)
         {
@@ -607,6 +533,11 @@ namespace DiscordBot
                 DiscordUplay.Remove(discordId);
             }
 
+            if (DiscordRanks.ContainsKey(discordId))
+            {
+                DiscordRanks.Remove(discordId);
+            }
+
             if (DoNotTrack.Contains(discordId))
             {
                 DoNotTrack.Remove(discordId);
@@ -615,22 +546,6 @@ namespace DiscordBot
             if (QuietPlayers.Contains(discordId))
             {
                 QuietPlayers.Remove(discordId);
-            }
-
-            Access.Release();
-        }
-        public async Task StopTracking(ulong discordId)
-        {
-            await Access.WaitAsync();
-
-            if (DiscordUplay.ContainsKey(discordId))
-            {
-                DiscordUplay.Remove(discordId);
-            }
-
-            if (!DoNotTrack.Contains(discordId))
-            {
-                DoNotTrack.Add(discordId);
             }
 
             Access.Release();
@@ -656,7 +571,6 @@ namespace DiscordBot
         }
 
 
- 
         public async Task RunBotAsync()
         {
             client = new DiscordSocketClient();
@@ -674,7 +588,7 @@ namespace DiscordBot
             {
                 await UpdateAll();
                 await BackupMappings();
-                await Task.Delay(TimeSpan.FromSeconds(30));
+                await Task.Delay(settings.updatePeriod);
             }
             // await Task.Delay();
         }
@@ -695,7 +609,7 @@ namespace DiscordBot
             if (message is null || message.Author.IsBot) return;
             if (!settings.BotChannels.Contains(message.Channel.Name)) return; // Ignore all channels except the allowed channel.
             int argPos = 0;
-
+                
             if (message.HasStringPrefix("!", ref argPos) || message.HasMentionPrefix(client.CurrentUser, ref argPos))
             {
                 var context = new SocketCommandContext(client, message);
@@ -709,7 +623,68 @@ namespace DiscordBot
 
         static async Task Main(string[] args)
         {
+
+            // TESTS
+            /*
+            string tester;
+            R6TabDataSnippet snippet;
+            string TRNID;
+            Rank r;
+
+            // Test TRN 0
+            tester = "NotOrsonWelles";
+            TRNID = await TRNHttpProvider.GetID(tester);
+            Console.WriteLine(tester + "'s ID:" + TRNID);
+            snippet = await TRNHttpProvider.GetData(TRNID);
+            r = snippet.ToRank();
+            Console.WriteLine(tester + "'s rank:" + r.FullPrint());
+
+            // Test TRN 1
+            string tester1 = "Lopata_6";
+            string TRNID1 = await TRNHttpProvider.GetID(tester1);
+            Console.WriteLine(tester1 + "'s ID:" + TRNID1);
+            snippet = await TRNHttpProvider.GetData(TRNID1);
+            r = snippet.ToRank();
+            Console.WriteLine(tester1 + "'s rank:" + r.FullPrint());
+
+            // Console.WriteLine(tester + "'s ID:" + testerID);
+            // R6TabDataSnippet snippet = await R6Tab.GetData(testerID);
+            // Rank r = snippet.ToRank();
+            // Console.WriteLine(tester + "'s rank:" + r.FullPrint());
+            // Test 2
+
+            // List<string> darthList = new List<string> {"@everyone", "G", "Raptoil", "Stamgast", "Gold 2", "Gold", "G2" };
+            // Rank guessDarth = Ranking.GuessRank(darthList);
+            // if (!guessDarth.Equals(new Rank(Metal.Gold, 2)))
+            // {
+            //     Console.WriteLine("Sanity check failed. Darth's guess is" + guessDarth.FullPrint());
+            //     throw new Exception();
+            // }
+
+            // Test TRN
+            // string tester2 = "NotOrsonWelles";
+            string TRNID2 = "dd33228f-5c0a-4e56-a7c6-6dc87d8bb3da";
+            snippet = await TRNHttpProvider.GetData(TRNID2);
+
+
+            // Test TRN Rankless (currently)
+            Console.WriteLine("Test rankless:");
+            // string tester3 = "Superzrout";
+            string TRNID3 = "90520cd6-9fe2-4763-b250-b0333dd82158";
+            snippet = await TRNHttpProvider.GetData(TRNID3);
+
+
+            tester = "DandoStarris";
+            TRNID = await TRNHttpProvider.GetID(tester);
+            Console.WriteLine(tester + "'s ID:" + TRNID);
+            snippet = await TRNHttpProvider.GetData(TRNID);
+            r = snippet.ToRank();
+            Console.WriteLine(tester + "'s rank:" + r.FullPrint());
+
+             */ // END TESTS
+
             await new Bot().RunBotAsync();
+
         }
     }
 }
