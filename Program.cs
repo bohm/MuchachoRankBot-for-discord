@@ -450,7 +450,15 @@ namespace R6RankBot
                 return;
             }
 
-            await Access.WaitAsync();
+            // We add a timer here and simply not update this time if the lock is held by some other
+            // main function for longer than a second.
+            bool access = await Access.WaitAsync(settings.lockTimeout);
+            if (!access)
+            {
+                System.Console.WriteLine("Pausing the update, a thread held the lock longer than " + settings.lockTimeout.ToString());
+                return;
+            }
+
             System.Console.WriteLine("Updating player ranks (period:" + settings.updatePeriod.ToString() + ").");
             int count = 0;
 
@@ -570,6 +578,16 @@ namespace R6RankBot
             Access.Release();
         }
 
+        
+        /// <summary>
+        /// A simple wrapper for UpdateAll() and BackupMappings() that makes sure both are called in one thread.
+        /// </summary>
+        /// <returns></returns>
+        public async Task UpdateAndBackup()
+        {
+            await UpdateAll();
+            await BackupMappings();
+        }
 
         public async Task RunBotAsync()
         {
@@ -584,10 +602,22 @@ namespace R6RankBot
             await client.LoginAsync(Discord.TokenType.Bot, Secret.botToken);
             await client.StartAsync();
             await client.SetGameAsync(settings.get_botStatus());
+            // We wish to set the bot's resident Discord guild and initialize.
+            // This is however only possible when the client is ready.
+            // See https://docs.stillu.cc/guides/concepts/events.html for further documentation.
+
+            client.Ready += () =>
+            {
+                this.ResidentGuild = client.GetGuild(settings.residenceID);
+                Console.WriteLine("Setting up residence in Discord guild " + this.ResidentGuild.Name);
+                _ = RoleInit();
+                return Task.CompletedTask;
+            };
+
             while (true)
             {
-                await UpdateAll();
-                await BackupMappings();
+                // We do the big update also in a separate thread.
+                _ = UpdateAndBackup();
                 await Task.Delay(settings.updatePeriod);
             }
             // await Task.Delay();

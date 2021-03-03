@@ -4,10 +4,14 @@ namespace R6RankBot
 {
     class settings
     {
-        // IDs of: DoctorOrson.
+        // ID of the guild (Discord server) that this instance operates on.
+        // For the main use of this bot, this is the ID of Discord server R6 Siege a Chill, a CZ/SK Discord server.
+        public static ulong residenceID = 620608384227606528; 
+        // ID of DoctorOrson, the current maintainer of this bot on the server.
         public static readonly ulong[] Operators = { 428263908281942038 };
 
-        public static TimeSpan updatePeriod = TimeSpan.FromHours(3);
+        public static TimeSpan updatePeriod = TimeSpan.FromHours(3); // How often do we update the ranks.
+        public static TimeSpan lockTimeout = TimeSpan.FromSeconds(1); // How long do we wait for acquiring the lock.
 
         private static string botStatus = "Napiste !prikazy pro informace.";
 

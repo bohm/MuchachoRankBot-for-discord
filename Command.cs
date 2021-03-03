@@ -231,6 +231,8 @@ namespace R6RankBot
 
         // --- Admin commands. ---
 
+        // Residence no longer used.
+        /*
         [Command("residence")]
         public async Task Residence()
         {
@@ -242,8 +244,97 @@ namespace R6RankBot
                 await Bot.Instance.RoleInit();
 
             }
+        }*/
+
+        [Command("updateuser")]
+        public async Task UpdateUser(string discordUsername)
+        {
+            if (!Bot.IsOperator(Context.Message.Author.Id))
+            {
+                await ReplyAsync("This command needs operator privileges.");
+                return;
+            }
+
+            if (Bot.Instance.ResidentGuild == null)
+            {
+                await ReplyAsync("R6RankBot has no set server as a residence, it cannot proceed.");
+                return;
+            }
+
+            var matchedUsers = Bot.Instance.ResidentGuild.Users.Where(x => x.Username.Equals(discordUsername));
+
+            if (matchedUsers.Count() == 0)
+            {
+                await ReplyAsync("There is no user matching the Discord nickname " + discordUsername + ".");
+                return;
+            }
+
+            if (matchedUsers.Count() > 1)
+            {
+                await ReplyAsync("Two or more users have the same matching Discord nickname. This command cannot continue.");
+                return;
+            }
+
+            Discord.WebSocket.SocketGuildUser rightUser = matchedUsers.First();
+
+            try
+            {
+                string authorR6TabId = await Bot.Instance.QueryMapping(rightUser.Id);
+
+                if (authorR6TabId == null)
+                {
+                    await ReplyAsync($"User {rightUser.Username} not tracked.");
+                    return;
+                }
+
+                bool ret = await Bot.Instance.UpdateOne(rightUser.Id);
+
+                if (ret)
+                {
+                    await ReplyAsync($"User {rightUser.Username} updated.");
+                    // Print user's rank too.
+                    Rank r = await Bot.GetCurrentRank(authorR6TabId);
+                    if (r.Digits())
+                    {
+                        await ReplyAsync($"We see {rightUser.Username}'s rank as {r.FullPrint()}");
+                    }
+                    else
+                    {
+                        await ReplyAsync($"We see {rightUser.Username}'s rank as {r.CompactFullPrint()}");
+                    }
+                }
+                else
+                {
+                    await ReplyAsync("Error during rank update (ret is false).");
+                    return;
+                }
+
+            }
+            catch (RankParsingException)
+            {
+                await ReplyAsync("Error during rank update (RankParsingException).");
+                return;
+            }
         }
 
+        [Command("updateall")]
+        public async Task UpdateAll()
+        {
+            if (!Bot.IsOperator(Context.Message.Author.Id))
+            {
+                await ReplyAsync("This command needs operator privileges.");
+                return;
+            }
+
+            if (Bot.Instance.ResidentGuild == null)
+            {
+                await ReplyAsync("R6RankBot has no set server as a residence, it cannot proceed.");
+                return;
+            }
+
+            await ReplyAsync("Running a manual update on all users.");
+            _ = Bot.Instance.UpdateAll();
+        }
 
         [Command("manualrank")]
 
