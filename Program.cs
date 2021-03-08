@@ -26,13 +26,12 @@ namespace R6RankBot
         private CommandService commands;
         private IServiceProvider services;
         private bool initComplete = false;
+        private bool dataReady = false;
 
         // The internal mapping between Discord names and R6TabIDs which we use to track ranks. Persists via backups.
         private Dictionary<ulong, string> DiscordUplay;
         // The internal data about ranks of Discord users. Does not persist on shutdown.
         private Dictionary<ulong, Rank> DiscordRanks;
-        // The internal mapping for people that should not be tracked.
-        private HashSet<ulong> DoNotTrack;
         private HashSet<ulong> QuietPlayers;
 
         // The semaphore (in fact a mutex) that blocks the access to DoNotTrack and DiscordUplay
@@ -69,7 +68,7 @@ namespace R6RankBot
             }
         }
   
-        public static async Task RemoveLoudRoles(Discord.WebSocket.SocketGuild Guild, Discord.WebSocket.SocketUser Author)
+        public static async Task RemoveLoudRoles(Discord.WebSocket.SocketUser Author)
         {
             // If the user is in any mentionable rank roles, they will be removed.
             var Us = (Discord.WebSocket.SocketGuildUser)Author;
@@ -162,82 +161,155 @@ namespace R6RankBot
         public async Task BackupMappings()
         {
             await Access.WaitAsync();
-            JsonSerializer serializer = new JsonSerializer();
-
-            using (StreamWriter sw = new StreamWriter(settings.serializeFile))
-            using (JsonWriter jw = new JsonTextWriter(sw))
-            {
-                serializer.Serialize(jw, DiscordUplay);
-                serializer.Serialize(jw, DoNotTrack);
-                serializer.Serialize(jw, QuietPlayers);
-            }
+            BackupData data = new BackupData();
+            data.discordRanksDict = new Dictionary<ulong, Rank>(DiscordRanks);
+            data.discordUplayDict = new Dictionary<ulong, string>(DiscordUplay);
+            data.quietSet = new HashSet<ulong>(QuietPlayers);
             Access.Release();
+            // We have the data now, we can continue without the lock, as long as this was indeed a deep copy.
+
+            Console.WriteLine($"Saving backup data to {settings.backupFile}.");
+            Backup.BackupToFile(data, settings.backupFile);
+
+            // Additionally, write the backup to Discord itself, so we can bootstrap from the Discord server itself and don't need any local files.
+            var backupChannel = ResidentGuild.TextChannels.Single(ch => ch.Name == "rank-bot-backups");
+            if (backupChannel != null)
+            {
+                // First, delete the previous backup. (This is why we also have a secondary backup.)
+                var messages = backupChannel.GetMessagesAsync().Flatten();
+                var msgarray = await messages.ToArray();
+                if (msgarray.Count() > 1)
+                {
+                    Console.WriteLine($"The bot wishes not to delete only 1 message, found {msgarray.Count()}.");
+                }
+
+                if (msgarray.Count() == 1)
+                {
+                    await backupChannel.DeleteMessageAsync(msgarray[0]);
+                }
+
+                // Now, upload the new backup.
+                await backupChannel.SendFileAsync(settings.backupFile, $"Backup file rsixbot.json created at {DateTime.Now.ToShortTimeString()}.");
+            }
         }
 
-        public Bot()
+        public async Task<BackupData> RestoreFromMessage()
         {
-            Instance = this;
-            DiscordRanks = new Dictionary<ulong, Rank>();
-            Access = new SemaphoreSlim(1, 1);
+            if (ResidentGuild == null)
+            {
+                return null;
+            }
+
+            BackupData bd = null;
+            var backupChannel = ResidentGuild.TextChannels.Single(ch => ch.Name == "rank-bot-backups");
+            if (backupChannel != null)
+            {
+                // First, delete the previous backup. (This is why we also have a secondary backup.)
+                var messages = backupChannel.GetMessagesAsync().Flatten();
+                var msgarray = await messages.ToArray();
+                if (msgarray.Count() != 1)
+                {
+                    Console.WriteLine($"Restoration expects exactly one message, found {msgarray.Count()}.");
+                }
+
+                var client = new HttpClient();
+                var dataString = await client.GetStringAsync(msgarray[0].Attachments.First().Url);
+                // TODO: exception handling here.
+                bd = Backup.RestoreFromString(dataString);
+            }
+            return bd;
+        }
+
+
+        /// <summary>
+        /// Fills in the data fields from some backup. Previously we did that on Bot() initialization,
+        /// we do that in a separate function now.
+        /// </summary>
+        /// <returns></returns>
+        public async Task PopulateData()
+        {
+            if (ResidentGuild == null)
+            {
+                return;
+            }
+
+            if (dataReady)
+            {
+                return;
+            }
+
+            Console.WriteLine("Populating data from the message backup.");
 
             // Try to deserialize the backup file first; if not found, initialize new structures.
-            if (File.Exists(settings.serializeFile))
+            try
             {
-                try
-                {
-                    StreamReader file = File.OpenText(settings.serializeFile);
-                    JsonSerializer serializer = new JsonSerializer();
-                    DiscordUplay = (Dictionary<ulong, string>)serializer.Deserialize(file, typeof(Dictionary<ulong, string>));
-                    DoNotTrack = (HashSet<ulong>)serializer.Deserialize(file, typeof(HashSet<ulong>));
-                    QuietPlayers = (HashSet<ulong>)serializer.Deserialize(file, typeof(HashSet<ulong>));
-                    file.Close();
-                }
-                catch (IOException)
-                {
-                    System.Console.WriteLine("Failed to load the backup file, starting from scratch.");
-                }
+                BackupData oldFile = await RestoreFromMessage();
+                // BackupData oldFile = Backup.RestoreFromFile(settings.backupFile);
+                DiscordUplay = oldFile.discordUplayDict;
+                DiscordRanks = oldFile.discordRanksDict;
+                QuietPlayers = oldFile.quietSet;
+            }
+            catch (IOException)
+            {
+                System.Console.WriteLine("Failed to load the backup file, starting from scratch.");
             }
 
             if (DiscordUplay == null)
             {
                 DiscordUplay = new Dictionary<ulong, string>();
-            } else
+            }
+            else
             {
                 System.Console.WriteLine("Loaded " + DiscordUplay.Count + " discord -- uplay connections.");
             }
 
-            if (DoNotTrack == null)
-            {
-                DoNotTrack = new HashSet<ulong>();
-            } else
-            {
-                System.Console.WriteLine("Loaded " + DoNotTrack.Count + " do not track players.");
-            }
-
             if (QuietPlayers == null)
             {
+                Console.WriteLine("The quiet player file does not exist or did not load correctly.");
                 QuietPlayers = new HashSet<ulong>();
-            } else
+            }
+            else
             {
                 System.Console.WriteLine("Loaded " + QuietPlayers.Count + " players who wish not to be pinged.");
             }
 
-            // Query R6Tab to populate DiscordRanks.
-
-            foreach (var (discordID, uplayID) in DiscordUplay)
+            if (DiscordRanks == null)
             {
-                try
+                Console.WriteLine("The current rank state file does not exist or did not load correctly.");
+                DiscordRanks = new Dictionary<ulong, Rank>();
+            }
+            else
+            {
+                System.Console.WriteLine("Loaded " + DiscordRanks.Count + " current player ranks.");
+            }
+
+            if (DiscordRanks.Count == 0)
+            {
+                // Query R6Tab to populate DiscordRanks.
+                foreach (var (discordID, uplayID) in DiscordUplay)
                 {
-                    R6TabDataSnippet data = TRNHttpProvider.UpdateAndGetData(uplayID).Result;
-                    Rank fetchedRank = data.ToRank();
-                    DiscordRanks[discordID] = data.ToRank();
-                    System.Console.WriteLine("Discord user " + discordID + " is fetched to have rank " + data.ToRank().FullPrint());
-                }
-                catch (RankParsingException)
-                {
-                    System.Console.WriteLine("Failed to set rank (first run) for player " + discordID);
+                    try
+                    {
+                        R6TabDataSnippet data = TRNHttpProvider.UpdateAndGetData(uplayID).Result;
+                        Rank fetchedRank = data.ToRank();
+                        DiscordRanks[discordID] = data.ToRank();
+                        System.Console.WriteLine("Discord user " + discordID + " is fetched to have rank " + data.ToRank().FullPrint());
+                    }
+                    catch (RankParsingException)
+                    {
+                        System.Console.WriteLine("Failed to set rank (first run) for player " + discordID);
+                    }
                 }
             }
+            dataReady = true;
+        }
+
+        public Bot()
+        {
+            Instance = this;
+
+            Access = new SemaphoreSlim(1, 1);
+
         }
 
 
@@ -486,12 +558,6 @@ namespace R6RankBot
         {
             await Access.WaitAsync();
 
-            if (DoNotTrack.Contains(discordId))
-            {
-                Access.Release();
-                throw new DoNotTrackException();
-            }
-
             if (DiscordUplay.ContainsKey(discordId))
             {
                 Access.Release();
@@ -520,13 +586,6 @@ namespace R6RankBot
         public async Task InsertIntoRanks(ulong discordID, Rank r)
         {
             // await Access.WaitAsync();
-
-            if (DoNotTrack.Contains(discordID))
-            {
-                // Access.Release();
-                throw new DoNotTrackException();
-            }
-
             DiscordRanks[discordID] = r;
             // Access.Release();
         }
@@ -544,11 +603,6 @@ namespace R6RankBot
             if (DiscordRanks.ContainsKey(discordId))
             {
                 DiscordRanks.Remove(discordId);
-            }
-
-            if (DoNotTrack.Contains(discordId))
-            {
-                DoNotTrack.Remove(discordId);
             }
 
             if (QuietPlayers.Contains(discordId))
@@ -606,19 +660,26 @@ namespace R6RankBot
             // This is however only possible when the client is ready.
             // See https://docs.stillu.cc/guides/concepts/events.html for further documentation.
 
-            client.Ready += () =>
+            client.Ready += async () =>
             {
                 this.ResidentGuild = client.GetGuild(settings.residenceID);
                 Console.WriteLine("Setting up residence in Discord guild " + this.ResidentGuild.Name);
-                _ = RoleInit();
-                return Task.CompletedTask;
+                if (!dataReady)
+                {
+                    await PopulateData();
+                }
+                if (!initComplete)
+                {
+                    _ = RoleInit();
+                }
+                return;
             };
 
             while (true)
             {
                 // We do the big update also in a separate thread.
-                _ = UpdateAndBackup();
                 await Task.Delay(settings.updatePeriod);
+                _ = UpdateAndBackup();
             }
             // await Task.Delay();
         }

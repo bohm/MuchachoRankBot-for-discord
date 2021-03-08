@@ -47,7 +47,7 @@ namespace R6RankBot
         {
             var Author = Context.Message.Author;
             var Guild = Context.Guild;
-            await Bot.RemoveLoudRoles(Guild, Author);
+            await Bot.RemoveLoudRoles(Author);
             await Bot.Instance.ShushPlayer(Author.Id);
             await ReplyAsync(Author.Username + ": Odted nebudete notifikovani, kdyz nekdo oznaci vasi roli. Poslete prikaz !nahlas pro zapnuti notifikaci.");
         }
@@ -184,7 +184,7 @@ namespace R6RankBot
                 else
                 {
                     await ReplyAsync(author.Username + ": Stala se chyba pri aktualizaci ranku, mate stale predchozi rank.");
-                } 
+                }
 
             }
             catch (RankParsingException)
@@ -336,6 +336,25 @@ namespace R6RankBot
             _ = Bot.Instance.UpdateAll();
         }
 
+        [Command("backup")]
+        public async Task Backup()
+        {
+            if (!Bot.IsOperator(Context.Message.Author.Id))
+            {
+                await ReplyAsync("This command needs operator privileges.");
+                return;
+            }
+
+            if (Bot.Instance.ResidentGuild == null)
+            {
+                await ReplyAsync("R6RankBot has no set server as a residence, it cannot proceed.");
+                return;
+            }
+
+            await ReplyAsync("Writing the current state of tracking into rsix.json.");
+            _ = Bot.Instance.BackupMappings();
+        }
+
         [Command("manualrank")]
 
         public async Task Manualrank(string discordUsername, string spectralRankName)
@@ -478,6 +497,80 @@ namespace R6RankBot
             }
         }
 
+        [Command("shushplayer")]
+        public async Task ShushPlayer(string discordUsername)
+        {
+            if (Bot.Instance.ResidentGuild == null)
+            {
+                await ReplyAsync("R6RankBot has no set server as a residence, it cannot proceed.");
+                return;
+            }
+
+            if (!Bot.IsOperator(Context.Message.Author.Id))
+            {
+                await ReplyAsync("This command needs operator privileges.");
+                return;
+            }
+            else
+            {
+                var matchedUsers = Bot.Instance.ResidentGuild.Users.Where(x => x.Username.Equals(discordUsername));
+
+                if (matchedUsers.Count() == 0)
+                {
+                    await ReplyAsync("There is no user matching the Discord nickname " + discordUsername + ".");
+                    return;
+                }
+
+                if (matchedUsers.Count() > 1)
+                {
+                    await ReplyAsync("Two or more users have the same matching Discord nickname. This command cannot continue.");
+                    return;
+                }
+
+                Discord.WebSocket.SocketGuildUser rightUser = matchedUsers.First();
+                await Bot.RemoveLoudRoles(rightUser);
+                await Bot.Instance.ShushPlayer(rightUser.Id);
+                await ReplyAsync($"Discord user {rightUser} is now shushed and won't be pinged.");
+            }
+        }
+
+        [Command("loudenplayer")]
+        public async Task LoudenPlayer(string discordUsername)
+        {
+            if (Bot.Instance.ResidentGuild == null)
+            {
+                await ReplyAsync("R6RankBot has no set server as a residence, it cannot proceed.");
+                return;
+            }
+
+            if (!Bot.IsOperator(Context.Message.Author.Id))
+            {
+                await ReplyAsync("This command needs operator privileges.");
+                return;
+            }
+            else
+            {
+                var matchedUsers = Bot.Instance.ResidentGuild.Users.Where(x => x.Username.Equals(discordUsername));
+
+                if (matchedUsers.Count() == 0)
+                {
+                    await ReplyAsync("There is no user matching the Discord nickname " + discordUsername + ".");
+                    return;
+                }
+
+                if (matchedUsers.Count() > 1)
+                {
+                    await ReplyAsync("Two or more users have the same matching Discord nickname. This command cannot continue.");
+                    return;
+                }
+
+                Discord.WebSocket.SocketGuildUser rightUser = matchedUsers.First();
+                // Add the user to any mentionable rank roles.
+                await Bot.Instance.MakePlayerLoud(rightUser.Id);
+                await Bot.Instance.AddLoudRoles(Bot.Instance.ResidentGuild, rightUser);
+                await ReplyAsync($"Discord user {rightUser.Username} is now set to loud.");
+            }
+        }
 
     }
 }

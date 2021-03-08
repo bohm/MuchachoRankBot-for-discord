@@ -15,10 +15,10 @@ namespace R6RankBot
 
         private static string botStatus = "Napiste !prikazy pro informace.";
 
-        public static readonly string[] BotChannels = { "rank-bot", "rank-bot-admin" }; // The only channels the bot is operating in.
+        public static readonly string[] BotChannels = { "rank-bot", "🦾rank-bot", "rank-bot-admin" }; // The only channels the bot is operating in.
         private static string logFolder = null;
 
-        public static string serializeFile = @"rsix.json";
+        public static string backupFile = @"rsixbot.json";
 
         public static readonly string[] R6TabRanks = {
                             "unrank",
