@@ -8,7 +8,7 @@ namespace R6RankBot
     enum Metal
     {
         Undefined,
-        Unranked,
+        Rankless,
         Copper,
         Bronze,
         Silver,
@@ -27,7 +27,7 @@ namespace R6RankBot
 
         public static readonly Rank[] AllRanks =
         {
-            new Rank(Metal.Unranked, 0),
+            new Rank(Metal.Rankless, 0),
             new Rank(Metal.Copper, 5), new Rank(Metal.Copper, 4), new Rank(Metal.Copper, 3), new Rank(Metal.Copper, 2), new Rank(Metal.Copper, 1),
             new Rank(Metal.Bronze, 5), new Rank(Metal.Bronze, 4), new Rank(Metal.Bronze, 3), new Rank(Metal.Bronze, 2), new Rank(Metal.Bronze, 1),
             new Rank(Metal.Silver, 5), new Rank(Metal.Silver, 4), new Rank(Metal.Silver, 3), new Rank(Metal.Silver, 2), new Rank(Metal.Silver, 1),
@@ -54,7 +54,7 @@ namespace R6RankBot
 
         public static readonly string[] LoudMetalRoles =
         {   
-            "Unrank", "Copper", "Bronze", "Silver", "Gold", "Plat", "Dia", "Champ"
+            "Rankless", "Copper", "Bronze", "Silver", "Gold", "Plat", "Dia", "Champ"
         };
 
         public static readonly string[] LoudDigitRoles =
@@ -68,7 +68,7 @@ namespace R6RankBot
 
         public static readonly string[] SpectralMetalRoles =
         {
-            "U", "C", "B", "S", "G", "P", "D", "CH"
+            "R", "C", "B", "S", "G", "P", "D", "CH"
         };
 
         public static readonly string[] SpectralDigitRoles =
@@ -80,7 +80,7 @@ namespace R6RankBot
                             "P3", "P2", "P1",
         };
 
-        public static readonly string ChillRole = "Full Chill";
+        // public static readonly string ChillRole = "Full Chill";
 
         public static Rank MMRToRank(int mmr)
         {
@@ -116,8 +116,8 @@ namespace R6RankBot
                     return "Diamond";
                 case Metal.Champion:
                     return "Champion";
-                case Metal.Unranked:
-                    return "Unranked";
+                case Metal.Rankless:
+                    return "Rankless";
                 default:
                     return "undefined";
             }
@@ -147,7 +147,7 @@ namespace R6RankBot
                     return new Discord.Color(0xa4, 0x7d, 0xf4); // a47df4
                 case Metal.Champion:
                     return new Discord.Color(0xdd, 0x5d, 0xb0); // dd5db0
-                case Metal.Unranked:
+                case Metal.Rankless:
                     return new Discord.Color(0x9f, 0x9f, 0x9f); // 9f9f9f
                 default:
                     return new Discord.Color();
@@ -178,8 +178,8 @@ namespace R6RankBot
                     return "Dia";
                 case Metal.Champion:
                     return "Champ";
-                case Metal.Unranked:
-                    return "Unranked";
+                case Metal.Rankless:
+                    return "Rankless";
                 default:
                     return "undefined";
             }
@@ -210,8 +210,8 @@ namespace R6RankBot
                     return "D";
                 case Metal.Champion:
                     return "CH";
-                case Metal.Unranked:
-                    return "U";
+                case Metal.Rankless:
+                    return "R";
                 default:
                     return "e";
             }
@@ -289,7 +289,7 @@ namespace R6RankBot
         /// <returns></returns>
         public bool Digits()
         {
-            if (met == Metal.Unranked || met == Metal.Diamond || met == Metal.Champion)
+            if (met == Metal.Rankless || met == Metal.Diamond || met == Metal.Champion)
             {
                 return false;
             }

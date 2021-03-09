@@ -61,8 +61,7 @@ namespace R6RankBot
         {
             System.Console.WriteLine("Removing all ranks from user " + User.Username);
             foreach (var RankRole in User.Roles.Where(x => Ranking.LoudMetalRoles.Contains(x.Name) || Ranking.LoudDigitRoles.Contains(x.Name)
-                                                        || Ranking.SpectralMetalRoles.Contains(x.Name) || Ranking.SpectralDigitRoles.Contains(x.Name)
-                                                        || Ranking.ChillRole == x.Name))
+                                                        || Ranking.SpectralMetalRoles.Contains(x.Name) || Ranking.SpectralDigitRoles.Contains(x.Name)))
             {
                 await User.RemoveRoleAsync(RankRole);
             }

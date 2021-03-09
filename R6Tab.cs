@@ -27,7 +27,7 @@ namespace R6RankBot
         {
             if (rank == 0)
             {
-                return new Rank(Metal.Unranked, 0);
+                return new Rank(Metal.Rankless, 0);
             }
             else
             {
