@@ -66,7 +66,7 @@ namespace R6RankBot
                             "Plat 3", "Plat 2", "Plat 1",
         };
 
-        public static readonly string[] Spe ctralMetalRoles =
+        public static readonly string[] SpectralMetalRoles =
         {
             "R", "C", "B", "S", "G", "P", "D", "CH"
         };
