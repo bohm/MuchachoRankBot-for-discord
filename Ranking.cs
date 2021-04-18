@@ -5,17 +5,17 @@ using System.Text;
 
 namespace R6RankBot
 {
-    enum Metal
+    enum Metal: int
     {
-        Undefined,
-        Rankless,
-        Copper,
-        Bronze,
-        Silver,
-        Gold,
-        Platinum,
-        Diamond,
-        Champion
+        Undefined = -2,
+        Rankless = -1,
+        Copper = 0,
+        Bronze = 1,
+        Silver = 2,
+        Gold = 3,
+        Platinum = 4,
+        Diamond = 5,
+        Champion = 6
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ namespace R6RankBot
                             "Plat 3", "Plat 2", "Plat 1",
         };
 
-        public static readonly string[] SpectralMetalRoles =
+        public static readonly string[] Spe ctralMetalRoles =
         {
             "R", "C", "B", "S", "G", "P", "D", "CH"
         };
@@ -162,6 +162,7 @@ namespace R6RankBot
         /// <returns></returns>
         public static string CompactPrint(Metal m)
         {
+
             switch (m)
             {
                 case Metal.Copper:
@@ -289,7 +290,7 @@ namespace R6RankBot
         /// <returns></returns>
         public bool Digits()
         {
-            if (met == Metal.Rankless || met == Metal.Diamond || met == Metal.Champion)
+            if (met == Metal.Undefined || met == Metal.Rankless || met == Metal.Diamond || met == Metal.Champion)
             {
                 return false;
             }

@@ -2,7 +2,7 @@
 
 namespace R6RankBot
 {
-    class settings
+    static class Settings
     {
         // ID of the guild (Discord server) that this instance operates on.
         // For the main use of this bot, this is the ID of Discord server R6 Siege a Chill, a CZ/SK Discord server.
@@ -10,25 +10,13 @@ namespace R6RankBot
         // ID of DoctorOrson, the current maintainer of this bot on the server.
         public static readonly ulong[] Operators = { 428263908281942038 };
 
-        public static TimeSpan updatePeriod = TimeSpan.FromHours(3); // How often do we update the ranks.
-        public static TimeSpan lockTimeout = TimeSpan.FromSeconds(1); // How long do we wait for acquiring the lock.
+        public static readonly TimeSpan updatePeriod = TimeSpan.FromHours(3); // How often do we update the ranks.
+        public static readonly TimeSpan lockTimeout = TimeSpan.FromSeconds(1); // How long do we wait for acquiring the lock.
 
-        private static string botStatus = "Napiste !prikazy pro informace.";
+        public const string botStatus = "Napiste !prikazy pro informace.";
 
         public static readonly string[] BotChannels = { "rank-bot", "🦾rank-bot", "rank-bot-admin" }; // The only channels the bot is operating in.
-        private static string logFolder = null;
-
-        public static string backupFile = @"rsixbot.json";
-
-        public static readonly string[] R6TabRanks = {
-                            "unrank",
-                            "Copper 4","Copper 3","Copper 2","Copper 1",
-                            "Bronze 4", "Bronze 3", "Bronze 2", "Bronze 1",
-                            "Silver 4", "Silver 3", "Silver 2", "Silver 1",
-                            "Gold 4", "Gold 3", "Gold 2", "Gold 1",
-                            "Platinum 3", "Platinum 2", "Platinum 1", "Diamond"}; // TODO: new ranks next season
-
-
+        public const string backupFile = @"rsixbot.json";
 
         // Computes a colour based on the role type
         public static Discord.Color roleColor(string roleName)
@@ -70,23 +58,6 @@ namespace R6RankBot
             {
                 return new Discord.Color();
             }
-        }
-        public static string get_botStatus()
-        {
-            return botStatus;
-        }
-        public static string get_logFolder()
-        {
-            return logFolder;
-        }
-
-        public static void set_botStatus(string txt)
-        {
-            botStatus = txt;
-        }
-        public static void set_logFolder(string txt)
-        {
-            logFolder = txt;
         }
     }
 }
