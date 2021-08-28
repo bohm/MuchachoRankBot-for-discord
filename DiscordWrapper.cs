@@ -98,6 +98,16 @@ namespace R6RankBot
             Rank r = data.ToRank();
             return r;
         }
+
+        /// <summary>
+        /// Returns a Discord user object based on the name provided. Returns the first result. 
+        /// </summary>
+        /// <param name="discordNick"></param>
+        /// <returns></returns>
+        public SocketGuildUser UserByName(string discordNick)
+        {
+            return this.ResidentGuild.Users.FirstOrDefault(x => ((x.Username == discordNick) || (x.Nickname == discordNick)));
+        }
         // --- End of static section. ---
     }
 }

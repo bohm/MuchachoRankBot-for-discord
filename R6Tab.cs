@@ -55,7 +55,7 @@ namespace R6RankBot
         public static string FetchAfterMatch(string data, string needle, char delimeter)
         {
             int position = data.IndexOf(needle);
-            if (position <= 0) // TODO: the span tag may not exist on low-level accounts, so handle that more gracefully.
+            if (position <= 0) // TODO:     the span tag may not exist on low-level accounts, so handle that more gracefully.
             {
                 return "";
             }
@@ -91,8 +91,9 @@ namespace R6RankBot
                 throw new RankParsingException("The returned page does not seem to be a user page");
             }
 
-            const string matchingString = "<span class=\"trn-text--dimmed\">Skill </span>\n<span>\n";
-            string MMRstring = FetchAfterMatch(websiteText, matchingString, 5);
+            //const string matchingString = "<span class=\"trn-text--dimmed\">Skill </span>\n<span>\n";
+            const string matchingString = "<div style=\"font-family: Rajdhani; font-size: 3rem;\">";
+            string MMRstring = FetchAfterMatch(websiteText, matchingString, '<');
 
             if (MMRstring.Length == 0)
             {
@@ -101,28 +102,24 @@ namespace R6RankBot
             }
 
             // Console.WriteLine("Found the string: \"" + MMRstring + "\"");
-            float floatMMR;
-            // float.Parse(MMRstring); // I prefer the correct parsing.
-            // bool success = float.TryParse(MMRstring, out floatMMR); // I said the correct parsing.
-            bool success = float.TryParse(MMRstring, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out floatMMR); // Perfection.
+            int mmr;
+            // int.Parse(MMRstring); // I prefer the correct parsing.
+            // bool success = int.TryParse(MMRstring, out floatMMR); // I said the correct parsing.
+            bool success = int.TryParse(MMRstring, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out mmr); // Perfection.
 
             if (!success)
             {
                 throw new RankParsingException("Parsing MMR to float failed.");
             }
-            floatMMR *= 100;
-            int mmr = (int)floatMMR;
-
-            // Console.WriteLine("MMR found: " + mmr);
 
             // Locate whether the tracker thinks the user has a rank (had >= 10 matches).
 
-            const string matchingRankName = "<div class=\"trn-defstat mb0\">\n<div class=\"trn-defstat__name\">Rank</div>\n<div class=\"trn-defstat__value\">\n";
-            const string ranklessResponse = "Not ranked yet.";
-            string rankString = FetchAfterMatch(websiteText, matchingRankName, ranklessResponse.Length);
+            const string matchingRankName = "<div class=\"trn-text--dimmed\" style=\"font-size: 1.5rem;\">";
+            // const string matchingRankName = "<div class=\"trn-defstat mb0\">\n<div class=\"trn-defstat__name\">Rank</div>\n<div class=\"trn-defstat__value\">\n";
+            const string ranklessResponse = "No Rank";
+            string rankString = FetchAfterMatch(websiteText, matchingRankName, '<');
 
             // Console.WriteLine("Found the rank string: \"" + rankString + "\"");
-
 
             int rank = 1;
             if (ranklessResponse.Equals(rankString) || rankString.Length == 0)
@@ -167,6 +164,27 @@ namespace R6RankBot
             // Console.WriteLine("It seems the ID of " + UplayNick + " is " + probableID);
             return probableID;
 
+        }
+
+        /// <summary>
+        /// Queries the tracker to return the current nickname, given the uplay unique ID. An inverse of GetID().
+        /// </summary>
+        /// <param name="uplayId"></param>
+        /// <returns></returns>
+        public static async Task<string> GetCurrentUplay(string uplayId)
+        {
+            string url = "https://r6.tracker.network/profile/id/" + uplayId;
+            HttpClient website = new HttpClient();
+            var response = await website.GetAsync(url);
+            if (response == null || response.StatusCode != HttpStatusCode.OK)
+            {
+                throw new RankParsingException("The HTTP response did not return OK or was empty.");
+            }
+
+            string websiteText = await response.Content.ReadAsStringAsync();
+            const string nicknameMatch = "<h1 class=\"trn-profile-header__name\">\n<span>\n";
+            string probableUplayName = FetchAfterMatch(websiteText, nicknameMatch, '\n');
+            return probableUplayName;
         }
     }
 

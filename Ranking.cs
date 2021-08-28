@@ -306,6 +306,7 @@ namespace R6RankBot
             return output;
         }
 
+        public override string ToString() => FullPrint();
         public string CompactMetalPrint()
         {
             return Ranking.CompactPrint(met);

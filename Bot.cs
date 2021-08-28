@@ -2,7 +2,6 @@
 using Discord.Commands;
 using Discord.WebSocket;
 using Newtonsoft.Json;
-using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Linq;
 using System.Reflection;
@@ -13,6 +12,7 @@ using System.Net;
 using System.Net.Http;
 using System.Collections.Generic;
 using System.IO;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace R6RankBot
 {
@@ -91,7 +91,7 @@ namespace R6RankBot
             {
                 // First, delete the previous backup. (This is why we also have a secondary backup.)
                 var messages = backupChannel.GetMessagesAsync().Flatten();
-                var msgarray = await messages.ToArray();
+                var msgarray = await messages.ToArrayAsync();
                 if (msgarray.Count() > 1)
                 {
                     Console.WriteLine($"The bot wishes not to delete only 1 message, found {msgarray.Count()}.");
@@ -120,7 +120,7 @@ namespace R6RankBot
             {
                 // First, delete the previous backup. (This is why we also have a secondary backup.)
                 var messages = backupChannel.GetMessagesAsync().Flatten();
-                var msgarray = await messages.ToArray();
+                var msgarray = await messages.ToArrayAsync();
                 if (msgarray.Count() != 1)
                 {
                     Console.WriteLine($"Restoration expects exactly one message, found {msgarray.Count()}.");
@@ -163,7 +163,7 @@ namespace R6RankBot
                 DiscordRanks = oldFile.discordRanksDict;
                 QuietPlayers = oldFile.quietSet;
             }
-            catch (IOException)
+            catch (Exception)
             {
                 System.Console.WriteLine("Failed to load the backup file, starting from scratch.");
             }
@@ -243,7 +243,7 @@ namespace R6RankBot
                 if (sameNameRole == null)
                 {
                     System.Console.WriteLine("Populating role " + roleName);
-                    await dwrap.ResidentGuild.CreateRoleAsync(roleName, null, Settings.roleColor(roleName));
+                    await dwrap.ResidentGuild.CreateRoleAsync(name: roleName, color: Settings.roleColor(roleName), isMentionable: false);
                 }
             }
 
@@ -253,7 +253,7 @@ namespace R6RankBot
                 if (sameNameRole == null)
                 {
                     System.Console.WriteLine("Populating role " + roleName);
-                    await dwrap.ResidentGuild.CreateRoleAsync(roleName, null, Settings.roleColor(roleName));
+                    await dwrap.ResidentGuild.CreateRoleAsync(name: roleName, color: Settings.roleColor(roleName), isMentionable: false);
                 }
             }
 
@@ -264,7 +264,7 @@ namespace R6RankBot
                 if (sameNameRole == null)
                 {
                     System.Console.WriteLine("Populating role " + roleName);
-                    await dwrap.ResidentGuild.CreateRoleAsync(roleName, null, Settings.roleColor(roleName));
+                    await dwrap.ResidentGuild.CreateRoleAsync(name: roleName, color: Settings.roleColor(roleName), isMentionable: false);
                 }
             }
 
@@ -274,7 +274,7 @@ namespace R6RankBot
                 if (sameNameRole == null)
                 {
                     System.Console.WriteLine("Populating role " + roleName);
-                    await dwrap.ResidentGuild.CreateRoleAsync(roleName, null, Settings.roleColor(roleName));
+                    await dwrap.ResidentGuild.CreateRoleAsync(name: roleName, color: Settings.roleColor(roleName), isMentionable: false);
                 }
             }
         }
@@ -335,6 +335,7 @@ namespace R6RankBot
                     else
                     {
                         Console.WriteLine("The fetched rank and the stored rank disagree for the user " + discordID);
+                        Console.WriteLine($"The fetched rank equals {fetchedRank} and the stored rank is {curRank}.");
                     }
                 }
                 else
