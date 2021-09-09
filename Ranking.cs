@@ -33,7 +33,7 @@ namespace R6RankBot
             new Rank(Metal.Silver, 5), new Rank(Metal.Silver, 4), new Rank(Metal.Silver, 3), new Rank(Metal.Silver, 2), new Rank(Metal.Silver, 1),
             new Rank(Metal.Gold, 3), new Rank(Metal.Gold, 2), new Rank(Metal.Gold, 1),
             new Rank(Metal.Platinum, 3), new Rank(Metal.Platinum, 2), new Rank(Metal.Platinum, 1),
-            new Rank(Metal.Diamond, 0),
+            new Rank(Metal.Diamond, 3), new Rank(Metal.Diamond, 2), new Rank(Metal.Diamond, 1),
             new Rank(Metal.Champion, 0)
         };
         /// <summary>
@@ -47,8 +47,8 @@ namespace R6RankBot
             1600, 1700, 1800, 1900, 2000,
             2100, 2200, 2300, 2400, 2500,
             2600, 2800, 3000,
-            3200, 3600, 4000,
-            4400,
+            3200, 3500, 3800,
+            4100, 4400, 4700,
             5000
         };
 
@@ -64,6 +64,7 @@ namespace R6RankBot
                             "Silver 5", "Silver 4", "Silver 3", "Silver 2", "Silver 1",
                             "Gold 3", "Gold 2", "Gold 1",
                             "Plat 3", "Plat 2", "Plat 1",
+                            "Dia 3", "Dia 2", "Dia 1"
         };
 
         public static readonly string[] SpectralMetalRoles =
@@ -78,9 +79,8 @@ namespace R6RankBot
                             "S5", "S4", "S3", "S2", "S1",
                             "G3", "G2", "G1",
                             "P3", "P2", "P1",
+                            "D3", "D2", "D1"
         };
-
-        // public static readonly string ChillRole = "Full Chill";
 
         public static Rank MMRToRank(int mmr)
         {
@@ -290,7 +290,7 @@ namespace R6RankBot
         /// <returns></returns>
         public bool Digits()
         {
-            if (met == Metal.Undefined || met == Metal.Rankless || met == Metal.Diamond || met == Metal.Champion)
+            if (met == Metal.Undefined || met == Metal.Rankless || met == Metal.Champion)
             {
                 return false;
             }
@@ -332,7 +332,7 @@ namespace R6RankBot
             if (Digits())
             {
                 // No blank space in this case.
-                output = output + level;
+                output += level;
             }
             return output;
         }
