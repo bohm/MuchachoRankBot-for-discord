@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace R6RankBot
+namespace RankBot
 {
     /// <summary>
     /// One data point stored in the main rank database about a user.

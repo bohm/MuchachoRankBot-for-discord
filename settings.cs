@@ -1,13 +1,21 @@
 ﻿using System;
 
-namespace R6RankBot
+namespace RankBot
 {
     static class Settings
     {
         // ID of the guild (Discord server) that this instance operates on.
         // For the main use of this bot, this is the ID of Discord server R6 Siege a Chill, a CZ/SK Discord server.
-        public static ulong residenceID = 620608384227606528; 
-        // ID of DoctorOrson, the current maintainer of this bot on the server.
+        public static ulong residenceID = 620608384227606528;
+
+        // ID of the guild where the channel with all internal data can be found.
+        // If the bot is to be run on multiple Discord servers (guild), this should be a server where you have owner privileges.
+        public static readonly ulong PrimaryServer = 903649099541270528;
+        public const string PrimaryConfigurationChannel = "primary-configuration";
+        // If the primary configuration channel is empty, the following file is read instead.
+        public const string PrimaryConfigurationFile = @"primary.json";
+
+        // Discord user IDs of all people that can run administrative commands through the bot.
         public static readonly ulong[] Operators = { 428263908281942038 };
 
         public static readonly TimeSpan updatePeriod = TimeSpan.FromHours(3); // How often do we update the ranks.
@@ -15,9 +23,17 @@ namespace R6RankBot
 
         public const string botStatus = "Napiste !prikazy pro informace.";
 
-        public static readonly string[] BotChannels = { "rank-bot", "🦾rank-bot", "rank-bot-admin" }; // The only channels the bot is operating in.
+        public static readonly string ReportChannel = "🦾rank-bot"; // The channel where the bot sends any public reports.
+        public static readonly string[] CommandChannels = { "rank-bot", "🦾rank-bot", "rank-bot-admin" }; // The only channels the bot is operating in.
         public const string backupFile = @"rsixbot.json";
 
+
+        public static readonly bool UsingExtensionMatchmaking = true;
+        public static readonly bool UsingExtensionRoleHighlights = true;
+        public static readonly bool UsingExtensionBanTracking = true;
+
+        public static readonly string[] RoleHighlightChannels = { "🔍hledám-spoluhráče", "hledame-testing" };
+        public static readonly string PrimaryGuildBackupChannel = "rank-bot-backups";
         // Computes a colour based on the role type
         public static Discord.Color roleColor(string roleName)
         {

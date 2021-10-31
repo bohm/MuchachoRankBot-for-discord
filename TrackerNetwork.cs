@@ -10,14 +10,14 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Linq;
 
-namespace R6RankBot
+namespace RankBot
 {
-    class R6TabDataSnippet
+    class TrackerDataSnippet
     {
         public int mmr;
         public int rank;
 
-        public R6TabDataSnippet(int v1, int v2)
+        public TrackerDataSnippet(int v1, int v2)
         {
             this.mmr = v1;
             this.rank = v2;
@@ -70,7 +70,7 @@ namespace R6RankBot
             return resultPrefix.Substring(0, delimeterPosition);
         }
 
-        public static async Task<R6TabDataSnippet> GetData(string TRNId)
+        public static async Task<TrackerDataSnippet> GetData(string TRNId)
         {
             string url = "https://r6.tracker.network/profile/id/" + TRNId;
             HttpClient website = new HttpClient();
@@ -98,7 +98,7 @@ namespace R6RankBot
             if (MMRstring.Length == 0)
             {
                 // Return the user as rankless, possibly did not play any ranked games yet.
-                return new R6TabDataSnippet(0, 0);
+                return new TrackerDataSnippet(0, 0);
             }
 
             // Console.WriteLine("Found the string: \"" + MMRstring + "\"");
@@ -132,7 +132,7 @@ namespace R6RankBot
                 // Console.WriteLine("This user has a rank.");
             }
 
-            return new R6TabDataSnippet(mmr, rank); // TODO: fix.
+            return new TrackerDataSnippet(mmr, rank); // TODO: fix.
         }
 
         /// <summary>
@@ -141,7 +141,7 @@ namespace R6RankBot
         /// </summary>
         /// <param name="r6TabId"></param>
         /// <returns></returns>
-        public static async Task<R6TabDataSnippet> UpdateAndGetData(string TRNID)
+        public static async Task<TrackerDataSnippet> UpdateAndGetData(string TRNID)
         {
             return await GetData(TRNID);
         }
@@ -166,6 +166,13 @@ namespace R6RankBot
 
         }
 
+        public static async Task<Rank> GetCurrentRank(string UplayID)
+        {
+            TrackerDataSnippet data = await TRNHttpProvider.GetData(UplayID);
+            Rank r = data.ToRank();
+            return r;
+        }
+
         /// <summary>
         /// Queries the tracker to return the current nickname, given the uplay unique ID. An inverse of GetID().
         /// </summary>
@@ -182,7 +189,7 @@ namespace R6RankBot
             }
 
             string websiteText = await response.Content.ReadAsStringAsync();
-            const string nicknameMatch = "<h1 class=\"trn-profile-header__name\">\n<span>\n";
+            const string nicknameMatch = "<span class=\"trn-profile-header__name\">\n";
             string probableUplayName = FetchAfterMatch(websiteText, nicknameMatch, '\n');
             return probableUplayName;
         }
@@ -191,7 +198,7 @@ namespace R6RankBot
         /// <summary>
         ///  A minimal API for reaching R6Tab and getting the required info.
         /// </summary>
-        class R6Tab
+        class TrackerNetwork
     {
         /// <summary>
         ///  Convert a JObject into a list of the JTokens contained therein.
@@ -217,7 +224,7 @@ namespace R6RankBot
             return spl[0]; // The first part should be the important one.
         }
 
-        public static async Task<R6TabDataSnippet> GetData(string r6TabId)
+        public static async Task<TrackerDataSnippet> GetData(string r6TabId)
         {
             try
             {
@@ -253,7 +260,7 @@ namespace R6RankBot
                 JValue MMR = (JValue)rankData["mmr"];
                 JValue rank = (JValue)rankData["rank"];
 
-                return new R6TabDataSnippet(MMR.ToObject<int>(), rank.ToObject<int>());
+                return new TrackerDataSnippet(MMR.ToObject<int>(), rank.ToObject<int>());
             }
             catch (TaskCanceledException)
             {
@@ -267,7 +274,7 @@ namespace R6RankBot
         /// </summary>
         /// <param name="r6TabId"></param>
         /// <returns></returns>
-        public static async Task<R6TabDataSnippet> UpdateAndGetData(string r6TabId)
+        public static async Task<TrackerDataSnippet> UpdateAndGetData(string r6TabId)
         {
             try
             {
@@ -303,7 +310,7 @@ namespace R6RankBot
                 JValue MMR = (JValue)rankData["mmr"];
                 JValue rank = (JValue)rankData["rank"];
 
-                return new R6TabDataSnippet(MMR.ToObject<int>(), rank.ToObject<int>());
+                return new TrackerDataSnippet(MMR.ToObject<int>(), rank.ToObject<int>());
             }
             catch (TaskCanceledException)
             {

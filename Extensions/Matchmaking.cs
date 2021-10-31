@@ -14,7 +14,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace R6RankBot.Extensions
+namespace RankBot.Extensions
 {
     class SubsetBuilder
     {
@@ -148,7 +148,7 @@ namespace R6RankBot.Extensions
                 string player = playerNames[i];
                 ulong disId = playerIDs[i];
                 string uplayId = bot.DiscordUplay[disId];
-                R6TabDataSnippet data = new R6TabDataSnippet(0, -1);
+                TrackerDataSnippet data = new TrackerDataSnippet(0, -1);
                 try
                 {
                     data = await TRNHttpProvider.GetData(uplayId);

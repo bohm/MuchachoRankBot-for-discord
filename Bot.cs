@@ -14,7 +14,7 @@ using System.Collections.Generic;
 using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace R6RankBot
+namespace RankBot
 {
     class Bot
     {
@@ -25,16 +25,16 @@ namespace R6RankBot
         private IServiceProvider services;
         private bool initComplete = false;
         private bool dataReady = false;
+        private bool _primaryServerLoaded = false;
         private string botStatus = Settings.botStatus;
 
-        // The internal mapping between Discord names and R6TabIDs which we use to track ranks. Persists via backups.
-        public Dictionary<ulong, string> DiscordUplay;
-        // The internal data about ranks of Discord users. Does not persist on shutdown.
-        public Dictionary<ulong, Rank> DiscordRanks;
-        public HashSet<ulong> QuietPlayers;
+        public BotDataStructure data;
 
-        // The semaphore (in fact a mutex) that blocks the access to DoNotTrack and DiscordUplay
-        private readonly SemaphoreSlim Access;
+        // The primary guild, used for backing up data as well as loading configuration data about other guilds.
+        private PrimaryDiscordGuild _primary;
+        // The other guilds (possibly including the primary one) where tracking and interfacing with users take place.
+        private List<DiscordGuild> _guildList;
+
 
         public static int RoleNameIndex(string Name, string[] RoleNames)
         {
@@ -49,64 +49,63 @@ namespace R6RankBot
             return -1;
         }
 
-        public async Task CleanSlate()
-        {
-            if (dwrap.ResidentGuild == null)
-            {
-                return;
-            }
 
-            foreach (SocketGuildUser user in dwrap.ResidentGuild.Users)
-            {
-                await dwrap.ClearAllRanks(user);
-            }
-
-            System.Console.WriteLine("The slate is now clean, no users have roles.");
-            initComplete = true;
-        }
 
         public async Task AddLoudRoles(Discord.WebSocket.SocketGuild Guild, Discord.WebSocket.SocketUser Author)
         {
             ulong DiscordID = Author.Id;
-            Rank r = await QueryRank(DiscordID);
+            Rank r = await data.QueryRank(DiscordID);
             await dwrap.AddLoudRoles(Guild, Author, r);
         }
 
-        public async Task BackupMappings()
+
+        public async Task<BackupGuildConfiguration> RestoreGuildConfiguration()
         {
-            await Access.WaitAsync();
-            BackupData data = new BackupData();
-            data.discordRanksDict = new Dictionary<ulong, Rank>(DiscordRanks);
-            data.discordUplayDict = new Dictionary<ulong, string>(DiscordUplay);
-            data.quietSet = new HashSet<ulong>(QuietPlayers);
-            Access.Release();
-            // We have the data now, we can continue without the lock, as long as this was indeed a deep copy.
-
-            Console.WriteLine($"Saving backup data to {Settings.backupFile}.");
-            Backup.BackupToFile(data, Settings.backupFile);
-
-            // Additionally, write the backup to Discord itself, so we can bootstrap from the Discord server itself and don't need any local files.
-            var backupChannel = dwrap.ResidentGuild.TextChannels.Single(ch => ch.Name == "rank-bot-backups");
-            if (backupChannel != null)
+            // First, check that the primary guild is already loaded.
+            if(!_primaryServerLoaded)
             {
-                // First, delete the previous backup. (This is why we also have a secondary backup.)
-                var messages = backupChannel.GetMessagesAsync().Flatten();
-                var msgarray = await messages.ToArrayAsync();
-                if (msgarray.Count() > 1)
-                {
-                    Console.WriteLine($"The bot wishes not to delete only 1 message, found {msgarray.Count()}.");
-                }
-
-                if (msgarray.Count() == 1)
-                {
-                    await backupChannel.DeleteMessageAsync(msgarray[0]);
-                }
-
-                // Now, upload the new backup.
-                await backupChannel.SendFileAsync(Settings.backupFile, $"Backup file rsixbot.json created at {DateTime.Now.ToShortTimeString()}.");
+                throw new PrimaryGuildException("Primary guild (Discord server) did not load and yet RestoreGuildConfiguration() is called.");
             }
+
+            BackupGuildConfiguration gc = null;
+            // First, attempt to restore the configuration from a message.
+
+            var primaryChannel = _primary._socket.TextChannels.Single(ch => ch.Name == Settings.PrimaryConfigurationChannel);
+
+            if (primaryChannel == null)
+            {
+                throw new PrimaryGuildException("Unable to find the primary configuration channel. Even if you are trying to restore from a file, create this channel first.");
+            }
+
+            var messages = primaryChannel.GetMessagesAsync().Flatten();
+            var msgarray = await messages.ToArrayAsync();
+            if (msgarray.Count() != 1)
+            {
+                Console.WriteLine($"Restoration expects exactly one message, found {msgarray.Count()}.");
+            }
+            else
+            {
+                var client = new HttpClient();
+                var dataString = await client.GetStringAsync(msgarray[0].Attachments.First().Url);
+                // TODO: exception handling here.
+                gc = Backup.ConfigurationFromString(dataString);
+            }
+
+            // If this fails, attempt to read it from a backup file.
+            Console.WriteLine("Primary guild loading did not go through, attempting to restore the configuration from a file.");
+
+            gc = Backup.ConfigurationFromFile(Settings.PrimaryConfigurationFile);
+            if (gc == null)
+            {
+                throw new PrimaryGuildException("Unable to restore guild configuration from any backup.");
+            }
+            return gc;
         }
 
+        public async Task RestoreDataStructure()
+        {
+
+        }
         public async Task<BackupData> RestoreFromMessage()
         {
             if (dwrap.ResidentGuild == null)
@@ -115,10 +114,9 @@ namespace R6RankBot
             }
 
             BackupData bd = null;
-            var backupChannel = dwrap.ResidentGuild.TextChannels.Single(ch => ch.Name == "rank-bot-backups");
+            SocketTextChannel backupChannel = dwrap.ResidentGuild.TextChannels.Single(ch => ch.Name == Settings.PrimaryGuildBackupChannel);
             if (backupChannel != null)
             {
-                // First, delete the previous backup. (This is why we also have a secondary backup.)
                 var messages = backupChannel.GetMessagesAsync().Flatten();
                 var msgarray = await messages.ToArrayAsync();
                 if (msgarray.Count() != 1)
@@ -129,7 +127,7 @@ namespace R6RankBot
                 var client = new HttpClient();
                 var dataString = await client.GetStringAsync(msgarray[0].Attachments.First().Url);
                 // TODO: exception handling here.
-                bd = Backup.RestoreFromString(dataString);
+                bd = BackupData.RestoreFromString(dataString);
             }
             return bd;
         }
@@ -162,6 +160,17 @@ namespace R6RankBot
                 DiscordUplay = oldFile.discordUplayDict;
                 DiscordRanks = oldFile.discordRanksDict;
                 QuietPlayers = oldFile.quietSet;
+
+                if (Settings.UsingExtensionBanTracking)
+                {
+                    // Temporary: if the bds structure was not parsed from the backup, because it didn't exist, just create a new empty one.
+                    if (oldFile.bds == null)
+                    {
+                        Console.WriteLine("Unable to restore the old ban data structure, creating an empty one.");
+                        oldFile.bds = new Extensions.BanDataStructure();
+                    }
+                    bt.DelayedInit(oldFile.bds);
+                }
             }
             catch (Exception)
             {
@@ -204,7 +213,7 @@ namespace R6RankBot
                 {
                     try
                     {
-                        R6TabDataSnippet data = TRNHttpProvider.UpdateAndGetData(uplayID).Result;
+                        TrackerDataSnippet data = TRNHttpProvider.UpdateAndGetData(uplayID).Result;
                         Rank fetchedRank = data.ToRank();
                         DiscordRanks[discordID] = data.ToRank();
                         System.Console.WriteLine("Discord user " + discordID + " is fetched to have rank " + data.ToRank().FullPrint());
@@ -221,9 +230,7 @@ namespace R6RankBot
         public Bot()
         {
             Instance = this;
-            dwrap = new DiscordWrapper();
-
-            Access = new SemaphoreSlim(1, 1);
+            data = new BotDataStructure();
 
         }
 
@@ -321,7 +328,7 @@ namespace R6RankBot
             // Discord.WebSocket.SocketGuildUser user = dwrap.ResidentGuild.Users.FirstOrDefault(x => x.Id == entry.Key);
             try
             {
-                R6TabDataSnippet data = await TRNHttpProvider.UpdateAndGetData(r6TabID);
+                TrackerDataSnippet data = await TRNHttpProvider.UpdateAndGetData(r6TabID);
                 Rank fetchedRank = data.ToRank();
 
                 bool updateRequired = true;
@@ -460,100 +467,43 @@ namespace R6RankBot
             Access.Release();
         }
 
-        public async Task<string> QueryMapping(ulong discordId)
+
+    public async Task PerformBackup()
         {
-            await Access.WaitAsync();
+            BackupData backup = await data.PrepareBackup();
 
-            string r6TabId = null;
-            DiscordUplay.TryGetValue(discordId, out r6TabId);
-            Access.Release();
-            return r6TabId;
-        }
+            // We have the backup data now, we can continue without the lock, as long as this was indeed a deep copy.
+            Console.WriteLine($"Saving backup data to {Settings.backupFile}.");
+            backup.BackupToFile(Settings.backupFile);
 
-        public async Task InsertIntoMapping(ulong discordId, string r6TabId)
-        {
-            await Access.WaitAsync();
-
-            if (DiscordUplay.ContainsKey(discordId))
+            // Additionally, write the backup to Discord itself, so we can bootstrap from the Discord server itself and don't need any local files.
+            SocketTextChannel backupChannel = dg._socket.TextChannels.SingleOrDefault(ch => ch.Name == Settings.PrimaryGuildBackupChannel);
+            if (backupChannel != null)
             {
-                Access.Release();
-                throw new DuplicateException();
+                // First, delete the previous backup. (This is why we also have a secondary backup.)
+                var messages = backupChannel.GetMessagesAsync().Flatten();
+                var msgarray = await messages.ToArrayAsync();
+                if (msgarray.Count() > 1)
+                {
+                    Console.WriteLine($"The bot wishes not to delete only 1 message, found {msgarray.Count()}.");
+                }
+
+                if (msgarray.Count() == 1)
+                {
+                    await backupChannel.DeleteMessageAsync(msgarray[0]);
+                }
+
+                // Now, upload the new backup.
+                await backupChannel.SendFileAsync(Settings.backupFile, $"Backup file rsixbot.json created at {DateTime.Now.ToShortTimeString()}.");
             }
-
-            DiscordUplay[discordId] = r6TabId;
-            Access.Release();
         }
-
-        public async Task<Rank> QueryRank(ulong DiscordID)
-        {
-            await Access.WaitAsync();
-            Rank r;
-            DiscordRanks.TryGetValue(DiscordID, out r);
-            Access.Release();
-            return r;
-        }
-        /// <summary>
-        /// Inserts into the DiscordRanks internal dictionary of mapping from
-        /// ids to ranks. Only call when having access to the database.
-        /// </summary>
-        /// <param name="discordID"></param>
-        /// <param name="r"></param>
-        /// <returns></returns>
-        public async Task InsertIntoRanks(ulong discordID, Rank r)
-        {
-            // await Access.WaitAsync();
-            DiscordRanks[discordID] = r;
-            // Access.Release();
-        }
-
-
-        public async Task RemoveFromDatabases(ulong discordId)
-        {
-            await Access.WaitAsync();
-
-            if (DiscordUplay.ContainsKey(discordId))
-            {
-                DiscordUplay.Remove(discordId);
-            }
-
-            if (DiscordRanks.ContainsKey(discordId))
-            {
-                DiscordRanks.Remove(discordId);
-            }
-
-            if (QuietPlayers.Contains(discordId))
-            {
-                QuietPlayers.Remove(discordId);
-            }
-
-            Access.Release();
-        }
-        public async Task ShushPlayer(ulong discordId)
-        {
-            await Access.WaitAsync();
-            if (!QuietPlayers.Contains(discordId))
-            {
-                QuietPlayers.Add(discordId);
-            }
-            Access.Release();
-        }
-
-        public async Task MakePlayerLoud(ulong discordId)
-        {
-            await Access.WaitAsync();
-            if (QuietPlayers.Contains(discordId))
-            {
-                QuietPlayers.Remove(discordId);
-            }
-            Access.Release();
-        }
-
+    }
         
         /// <summary>
         /// A simple wrapper for UpdateAll() and BackupMappings() that makes sure both are called in one thread.
         /// </summary>
         /// <returns></returns>
-        public async Task UpdateAndBackup()
+        private async Task UpdateAndBackup(object _)
         {
             await UpdateAll();
             await BackupMappings();
@@ -597,17 +547,32 @@ namespace R6RankBot
                 {
                     _ = RoleInit();
                 }
+
+                _rh.DelayedInit();
                 return;
             };
 
+            if (Settings.UsingExtensionRoleHighlights)
+            {
+                client.MessageReceived += _rh.Filter;
+            }
+
+            // Timer updateTimer = new Timer(new TimerCallback(UpdateAndBackup), null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(60));
+            Timer banTimer = new Timer(new TimerCallback(bt.UpdateStructure), null, TimeSpan.FromMinutes(2), TimeSpan.FromHours(12));
             while (true)
             {
                 // We do the big update also in a separate thread.
                 await Task.Delay(Settings.updatePeriod);
-                _ = UpdateAndBackup();
+                _ = UpdateAndBackup(null);
             }
             // await Task.Delay();
         }
+
+        public void TestMessage(Object stateInfo)
+        {
+            Console.WriteLine($"{DateTime.Now}: Testing message.");
+        }
+
         private Task Log(LogMessage arg)
         {
             Console.WriteLine(arg);
@@ -623,7 +588,7 @@ namespace R6RankBot
         {
             var message = arg as SocketUserMessage;
             if (message is null || message.Author.IsBot) return;
-            if (!Settings.BotChannels.Contains(message.Channel.Name)) return; // Ignore all channels except the allowed channel.
+            if (!Settings.CommandChannels.Contains(message.Channel.Name)) return; // Ignore all channels except the allowed channel.
             int argPos = 0;
                 
             if (message.HasStringPrefix("!", ref argPos) || message.HasMentionPrefix(client.CurrentUser, ref argPos))
@@ -699,6 +664,11 @@ namespace R6RankBot
 
              */ // END TESTS
 
+            /* StatsDB b = new StatsDB();
+            (bool DuoOrsonBanned, int OrsBanCode) = b.CheckUserBan("dd33228f-5c0a-4e56-a7c6-6dc87d8bb3da"); // DuoDoctorOrson
+            (bool TeenagersBanned, int TeenBanCode) = b.CheckUserBan("71f7dd7b-fae0-4341-8788-c00085a7963d"); // Some teenagers guy, current ban: toxic behavior.
+            (bool MartyBanned, int MartyBanCode) = b.CheckUserBan("6bc4610c-4ad4-4ee0-8173-284677e3140b"); // Marty.GLS
+            Console.WriteLine($"Orson {DuoOrsonBanned} with code {OrsBanCode}, teenagers {TeenagersBanned} with code {TeenBanCode}, Marty {MartyBanned} with code {MartyBanCode}"); */
             await new Bot().RunBotAsync();
 
         }

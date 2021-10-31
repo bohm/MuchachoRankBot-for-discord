@@ -10,7 +10,7 @@ using Discord.Commands;
 using Discord.WebSocket;
 
 
-namespace R6RankBot
+namespace RankBot
 {
     class DiscordWrapper
     {
@@ -94,9 +94,29 @@ namespace R6RankBot
 
         public async Task<Rank> GetCurrentRank(string R6TabID)
         {
-            R6TabDataSnippet data = await TRNHttpProvider.GetData(R6TabID);
+            TrackerDataSnippet data = await TRNHttpProvider.GetData(R6TabID);
             Rank r = data.ToRank();
             return r;
+        }
+
+        /// <summary>
+        /// Publishes a list of messages into the assigned rank bot channel.
+        /// </summary>
+        /// <param name="messages"></param>
+        /// <returns></returns>
+        public async Task PublishBotReports(List<string> messages)
+        {
+            var ReportChannel = this.ResidentGuild.TextChannels.FirstOrDefault(x => (x.Name == Settings.ReportChannel));
+
+            if (ReportChannel == null)
+            {
+                return;
+            }
+
+            foreach (var message in messages)
+            {
+                await ReportChannel.SendMessageAsync(message);
+            }
         }
 
         /// <summary>
@@ -108,6 +128,5 @@ namespace R6RankBot
         {
             return this.ResidentGuild.Users.FirstOrDefault(x => ((x.Username == discordNick) || (x.Nickname == discordNick)));
         }
-        // --- End of static section. ---
     }
 }

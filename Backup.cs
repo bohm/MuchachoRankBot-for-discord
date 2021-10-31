@@ -4,16 +4,123 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace R6RankBot
+namespace RankBot
 {
+
+    class BackupGuildConfiguration
+    {
+        public ulong id;
+        public string reportChannel;
+        public List<string> commandChannels;
+        public List<string> roleHighlightChannels;
+
+        public static BackupGuildConfiguration RestoreFromFile(string fileName)
+        {
+            BackupGuildConfiguration ret = null;
+            if (File.Exists(fileName))
+            {
+                JsonSerializer serializer = new JsonSerializer();
+                StreamReader fileStream = File.OpenText(fileName);
+                JsonTextReader file = new JsonTextReader(fileStream);
+                ret = (BackupGuildConfiguration)serializer.Deserialize(file, typeof(BackupGuildConfiguration));
+                file.Close();
+            }
+
+            return ret;
+        }
+        public static BackupGuildConfiguration RestoreFromString(string content)
+        {
+            BackupGuildConfiguration ret = null;
+            TextReader stringr = new StringReader(content);
+            JsonSerializer serializer = new JsonSerializer();
+            ret = (BackupGuildConfiguration)serializer.Deserialize(stringr, typeof(BackupGuildConfiguration));
+            return ret;
+        }
+
+        public void BackupToFile(string fileName)
+        {
+
+            JsonSerializer serializer = new JsonSerializer();
+            using (StreamWriter sw = new StreamWriter(fileName))
+            using (JsonWriter jw = new JsonTextWriter(sw))
+            {
+                serializer.Serialize(jw, this);
+            }
+        }
+
+        public string BackupToString()
+        {
+            StringBuilder sb = new StringBuilder();
+            JsonSerializer serializer = new JsonSerializer();
+            using (StringWriter sw = new StringWriter(sb))
+            {
+                using (JsonTextWriter jw = new JsonTextWriter(sw))
+                {
+                    serializer.Serialize(jw, this);
+                }
+            }
+
+            return sb.ToString();
+        }
+    }
 
     class BackupData
     {
-        // The internal mapping between Discord names and R6TabIDs which we use to track ranks. Persists via backups.
+        // The internal mapping between Discord names and R6TabIDs which we use to track ranks.
         public Dictionary<ulong, string> discordUplayDict;
-        // The internal data about ranks of Discord users. Does not persist on shutdown.
+        // The internal data about ranks of Discord users.
         public Dictionary<ulong, Rank> discordRanksDict;
         public HashSet<ulong> quietSet;
+        public Extensions.BanDataStructure bds;
+
+        public static BackupData RestoreFromFile(string fileName)
+        {
+            BackupData ret = null;
+            if (File.Exists(fileName))
+            {
+                JsonSerializer serializer = new JsonSerializer();
+                StreamReader fileStream = File.OpenText(fileName);
+                JsonTextReader file = new JsonTextReader(fileStream);
+                ret = (BackupData)serializer.Deserialize(file, typeof(BackupData));
+                file.Close();
+            }
+
+            return ret;
+        }
+        public static BackupData RestoreFromString(string content)
+        {
+            BackupData ret = null;
+            TextReader stringr = new StringReader(content);
+            JsonSerializer serializer = new JsonSerializer();
+            ret = (BackupData)serializer.Deserialize(stringr, typeof(BackupData));
+            return ret;
+        }
+
+        public void BackupToFile(string fileName)
+        {
+
+            JsonSerializer serializer = new JsonSerializer();
+            using (StreamWriter sw = new StreamWriter(fileName))
+            using (JsonWriter jw = new JsonTextWriter(sw))
+            {
+                serializer.Serialize(jw, this);
+            }
+        }
+
+        public string BackupToString()
+        {
+            StringBuilder sb = new StringBuilder();
+            JsonSerializer serializer = new JsonSerializer();
+            using (StringWriter sw = new StringWriter(sb))
+            {
+                using (JsonTextWriter jw = new JsonTextWriter(sw))
+                {
+                    serializer.Serialize(jw, this);
+                }
+            }
+
+            return sb.ToString();
+        }
     }
 
     /// <summary>

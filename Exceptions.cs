@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace R6RankBot
+namespace RankBot
 {
     public class RankParsingException : Exception
     {
@@ -35,18 +35,18 @@ namespace R6RankBot
         }
     }
 
-    public class DoNotTrackException : Exception
+    public class PrimaryGuildException : Exception
     {
-        public DoNotTrackException()
+        public PrimaryGuildException()
         {
         }
 
-        public DoNotTrackException(string message)
+        public PrimaryGuildException(string message)
             : base(message)
         {
         }
 
-        public DoNotTrackException(string message, Exception inner)
+        public PrimaryGuildException(string message, Exception inner)
             : base(message, inner)
         {
         }

@@ -6,9 +6,9 @@ using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using R6RankBot.Extensions;
+using RankBot.Extensions;
 
-namespace R6RankBot.Commands
+namespace RankBot.Commands
 {
     public class ExtMatchmaking : CommonBase
     {

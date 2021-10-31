@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 
-namespace R6RankBot
+namespace RankBot
 {
     public class CommonBase : ModuleBase<SocketCommandContext>
     {

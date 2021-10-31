@@ -7,7 +7,7 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace R6RankBot.Commands
+namespace RankBot.Commands
 {
     public class BasicAdmin : CommonBase
     {
@@ -258,11 +258,6 @@ namespace R6RankBot.Commands
                     }
 
 
-                }
-                catch (DoNotTrackException)
-                {
-                    await ReplyAsync(rightUser.Username + ": Jste Full Chill, vas rank aktualne nebudeme trackovat.");
-                    return;
                 }
                 catch (RankParsingException e)
                 {
