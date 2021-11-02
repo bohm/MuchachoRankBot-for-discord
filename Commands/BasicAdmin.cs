@@ -31,7 +31,8 @@ namespace RankBot.Commands
             {
                 return;
             }
-            await Bot.Instance.PopulateRoles();
+
+            await RoleCreation.CreateMissingRoles(Context.Guild);
         }
 
         [Command("resetuser")]
@@ -99,7 +100,7 @@ namespace RankBot.Commands
                 {
                     await ReplyAsync($"User {rightUser.Username} updated.");
                     // Print user's rank too.
-                    Rank r = await Bot.Instance.dwrap.GetCurrentRank(authorR6TabId);
+                    Rank r = .GetCurrentRank(authorR6TabId);
                     if (r.Digits())
                     {
                         await ReplyAsync($"We see {rightUser.Username}'s rank as {r.FullPrint()}");
@@ -242,7 +243,7 @@ namespace RankBot.Commands
                     if (ret)
                     {
                         // Print user's rank too.
-                        Rank r = await Bot.Instance.dwrap.GetCurrentRank(r6TabId);
+                        Rank r = await TRNHttpProvider.GetCurrentRank(r6TabId);
                         if (r.Digits())
                         {
                             await ReplyAsync(rightUser.Username + ": Aktualne vidime vas rank jako " + r.FullPrint());
@@ -276,7 +277,7 @@ namespace RankBot.Commands
                 return;
             }
 
-            var matchedUsers = Bot.Instance.dwrap.ResidentGuild.Users.Where(x => x.Username.Equals(discordUsername));
+            var matchedUsers = Context.Guild.Users.Where(x => x.Username.Equals(discordUsername) || x.Nickname.Equals(discordUsername));
 
             if (matchedUsers.Count() == 0)
             {
@@ -291,8 +292,7 @@ namespace RankBot.Commands
             }
 
             Discord.WebSocket.SocketGuildUser rightUser = matchedUsers.First();
-            await Bot.Instance.dwrap.RemoveLoudRoles(rightUser);
-            await Bot.Instance.ShushPlayer(rightUser.Id);
+            await Bot.Instance.QuietenUserAndTakeRoles(rightUser.Id);
             await ReplyAsync($"Discord user {rightUser} is now shushed and won't be pinged.");
         }
 
@@ -304,7 +304,7 @@ namespace RankBot.Commands
                 return;
             }
 
-            var matchedUsers = Bot.Instance.dwrap.ResidentGuild.Users.Where(x => x.Username.Equals(discordUsername));
+            var matchedUsers = Context.Guild.Users.Where(x => x.Username.Equals(discordUsername) || x.Nickname.Equals(discordUsername));
 
             if (matchedUsers.Count() == 0)
             {
@@ -320,8 +320,7 @@ namespace RankBot.Commands
 
             Discord.WebSocket.SocketGuildUser rightUser = matchedUsers.First();
             // Add the user to any mentionable rank roles.
-            await Bot.Instance.MakePlayerLoud(rightUser.Id);
-            await Bot.Instance.AddLoudRoles(Bot.Instance.dwrap.ResidentGuild, rightUser);
+            await Bot.Instance.LoudenUserAndAddRoles(rightUser.Id);
             await ReplyAsync($"Discord user {rightUser.Username} is now set to loud.");
         }
     }

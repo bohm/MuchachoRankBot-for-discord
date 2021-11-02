@@ -41,34 +41,31 @@ namespace RankBot.Extensions
     class BanTracking
     {
         private DiscordGuilds _guilds;
-        private DiscordWrapper _dw;
+        // private DiscordWrapper _dw;
         public SemaphoreSlim BanTreeAccess;
         private StatsDB statsdb;
         private BanDataStructure bds;
-        public bool InitComplete = false;
         private int NumberOfQueries = 0;
-        public BanTracking(DiscordWrapper dwrap)
+        public BanTracking(DiscordGuilds g, BanDataStructure savedDS)
         {
-            _dw = dwrap;
+            _guilds = g;
             statsdb = new StatsDB();
             BanTreeAccess = new SemaphoreSlim(1,1);
+            bds = savedDS;
+            Console.WriteLine($"Loaded {bds.BanDict.Count} ban dict elements from the last backup");
         }
 
-        public void DelayedInit(BanDataStructure savedDS)
+        public BanTracking(DiscordGuilds g)
         {
-            bds = savedDS;
-            InitComplete = true;
-            Console.WriteLine($"Loaded {bds.BanDict.Count} ban dict elements from the last backup");
+            Console.WriteLine("Creating bantracking without any previous data.");
+            _guilds = g;
+            statsdb = new StatsDB();
+            BanTreeAccess = new SemaphoreSlim(1, 1);
+            bds = new BanDataStructure();
         }
 
         public BanDataStructure DuplicateData()
         {
-            // If initialization is not complete, this could erase some data. Just fail loudly in that case.
-            if (!InitComplete)
-            {
-                throw new Exception();
-            }
-
             BanTreeAccess.Wait();
             BanDataStructure ret = new BanDataStructure();
             ret.BanDict = new Dictionary<string, BanData>(bds.BanDict);
@@ -133,10 +130,7 @@ namespace RankBot.Extensions
 
         private async Task SuspectFirstCheck(string uplayId)
         {
-            if (!InitComplete)
-            {
-                return;
-            }
+
             BanTreeAccess.Wait();
 
             // Actually only one report, but we still use the List<> function to provide the report.
@@ -174,14 +168,10 @@ namespace RankBot.Extensions
             }
         }
 
-        public async Task InsertSuspect(string uplayId, string originalNick, ulong ReporterId)
+        public async Task InsertSuspect(string uplayId, string originalNick, ulong reporterID, ulong discordWhereAsked)
         {
-            if(!InitComplete)
-            {
-                return;
-            }
             BanTreeAccess.Wait();
-            BanData bd = new BanData(originalNick, uplayId, ReporterId);
+            BanData bd = new BanData(originalNick, uplayId, reporterID, discordWhereAsked);
             bds.OrigNickToUplay.Add(originalNick, uplayId);
             bds.BanDict.Add(uplayId, bd);
             BanTreeAccess.Release();
@@ -190,10 +180,7 @@ namespace RankBot.Extensions
 
         public void DeleteSuspectByNick(string originalNick)
         {
-            if(!InitComplete)
-            {
-                return;
-            }
+
             BanTreeAccess.Wait();
             if (bds.OrigNickToUplay.ContainsKey(originalNick))
             {
@@ -209,10 +196,6 @@ namespace RankBot.Extensions
         
         public void DeleteSuspectById(string uplayId)
         {
-            if (!InitComplete)
-            {
-                return;
-            }
             BanTreeAccess.Wait();
             if (bds.BanDict.ContainsKey(uplayId))
             {

@@ -92,13 +92,6 @@ namespace RankBot
             }
         }
 
-        public async Task<Rank> GetCurrentRank(string R6TabID)
-        {
-            TrackerDataSnippet data = await TRNHttpProvider.GetData(R6TabID);
-            Rank r = data.ToRank();
-            return r;
-        }
-
         /// <summary>
         /// Publishes a list of messages into the assigned rank bot channel.
         /// </summary>

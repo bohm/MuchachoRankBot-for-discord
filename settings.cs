@@ -27,6 +27,11 @@ namespace RankBot
         public static readonly string[] CommandChannels = { "rank-bot", "🦾rank-bot", "rank-bot-admin" }; // The only channels the bot is operating in.
         public const string backupFile = @"rsixbot.json";
 
+        // The bot needs to find at least the guild configuration file or message somewhere.
+        // However, if you are running it for the first time, you may run it without a database of users.
+        // In that case, set this variable to true, add at least one user, then call !backup to create the
+        // data backup message, then set it back to false.
+        public static readonly bool BotFirstRun = false;  
 
         public static readonly bool UsingExtensionMatchmaking = true;
         public static readonly bool UsingExtensionRoleHighlights = true;

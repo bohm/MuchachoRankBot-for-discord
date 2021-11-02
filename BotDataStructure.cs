@@ -36,8 +36,25 @@ namespace RankBot
             {
                 bt = new Extensions.BanTracking(dwrap);
             }
+   
+            DiscordUplay = new Dictionary<ulong, string>();
+            QuietPlayers = new HashSet<ulong>();
+            DiscordRanks = new Dictionary<ulong, Rank>();
         }
 
+        public BotDataStructure(BackupData backup)
+        {
+            Access = new SemaphoreSlim(1, 1);
+            if (Settings.UsingExtensionRoleHighlights)
+            {
+
+            }
+
+            if (Settings.UsingExtensionBanTracking)
+            {
+
+            }
+        }
 
         public async Task<BackupData> PrepareBackup()
         {
@@ -56,6 +73,22 @@ namespace RankBot
             return data;
         }
 
+        public async Task<bool> QueryQuietness(ulong discordUserID)
+        {
+            await Access.WaitAsync();
+            bool ret = QuietPlayers.Contains(discordUserID);
+            Access.Release();
+            return ret;
+        }
+
+
+        public async Task<bool> MappingContains(ulong discordID)
+        {
+            await Access.WaitAsync();
+            bool contains = DiscordUplay.ContainsKey(discordID);
+            Access.Release();
+            return contains;
+        }
 
         public async Task<string> QueryMapping(ulong discordId)
         {
@@ -79,6 +112,14 @@ namespace RankBot
 
             DiscordUplay[discordId] = r6TabId;
             Access.Release();
+        }
+
+        public async Task<bool> TrackingContains(ulong discordID)
+        {
+            await Access.WaitAsync();
+            bool ret = DiscordRanks.ContainsKey(discordID);
+            Access.Release();
+            return ret;
         }
 
         public async Task<Rank> QueryRank(ulong DiscordID)
@@ -142,6 +183,21 @@ namespace RankBot
                 QuietPlayers.Remove(discordId);
             }
             Access.Release();
+        }
+
+        internal async Task UpdateRanks(ulong discordID, Rank fetchedRank)
+        {
+            await Access.WaitAsync();
+            DiscordRanks[discordID] = fetchedRank;
+            Access.Release();
+        }
+
+        internal async Task<Dictionary<ulong, string>> DuplicateUplayMapping()
+        {
+            await Access.WaitAsync();
+            Dictionary<ulong, string> copy = new Dictionary<ulong, string>(DiscordUplay);
+            Access.Release();
+            return copy;
         }
     }
 }

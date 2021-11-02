@@ -52,6 +52,20 @@ namespace RankBot
             return _socket != null;
         }
 
+        /// <summary>
+        /// Queries the Discord API to figure out if a user is a member of a guild.
+        /// </summary>
+        /// <param name="discordID"></param>
+        /// <returns></returns>
+        public bool IsGuildMember(ulong discordID)
+        {
+            if(_socket.Users.FirstOrDefault(x => x.Id == discordID) != null)
+            {
+                return true;
+            }
+
+            return false;
+        }
 
         public async Task CleanSlate()
         {
@@ -62,11 +76,10 @@ namespace RankBot
 
             foreach (SocketGuildUser user in _socket.Users)
             {
-                await dwrap.ClearAllRanks(user);
+                await RemoveAllRankRoles(user);
             }
 
             System.Console.WriteLine("The slate is now clean, no users have roles.");
-            initComplete = true;
         }
 
         /// <summary>
@@ -92,6 +105,98 @@ namespace RankBot
             }
 
             _reports.Clear();
+        }
+
+        public async Task RemoveAllRankRoles(Discord.WebSocket.SocketGuildUser User)
+        {
+            System.Console.WriteLine("Removing all ranks from user " + User.Username);
+            foreach (var RankRole in User.Roles.Where(x => Ranking.LoudMetalRoles.Contains(x.Name) || Ranking.LoudDigitRoles.Contains(x.Name)
+                                                        || Ranking.SpectralMetalRoles.Contains(x.Name) || Ranking.SpectralDigitRoles.Contains(x.Name)))
+            {
+                await User.RemoveRoleAsync(RankRole);
+            }
+        }
+
+        public async Task RemoveLoudRoles(Discord.WebSocket.SocketUser Author)
+        {
+            // If the user is in any mentionable rank roles, they will be removed.
+            var Us = (Discord.WebSocket.SocketGuildUser)Author;
+            // For each loud role, which can be a loud big role or a loud tiny role:
+            foreach (var LoudRole in Us.Roles.Where(x => Ranking.LoudDigitRoles.Contains(x.Name) || Ranking.LoudMetalRoles.Contains(x.Name)))
+            {
+                await Us.RemoveRoleAsync(LoudRole);
+            }
+        }
+
+        public async Task AddLoudRoles(Discord.WebSocket.SocketUser Author, Rank rank)
+        {
+            var Us = (Discord.WebSocket.SocketGuildUser)Author;
+
+            // First add the non-digit role.
+            string nonDigitLoudName = rank.CompactMetalPrint();
+            var LoudRole = _socket.Roles.FirstOrDefault(x => x.Name == nonDigitLoudName);
+            if (LoudRole != null)
+            {
+                await Us.AddRoleAsync(LoudRole);
+            }
+
+            // Then, if the rank has a digit role, add that too.
+            if (rank.Digits())
+            {
+                string digitLoudName = rank.CompactFullPrint();
+                var LoudDigitRole = _socket.Roles.FirstOrDefault(x => x.Name == digitLoudName);
+                if (LoudDigitRole != null)
+                {
+                    await Us.AddRoleAsync(LoudDigitRole);
+                }
+            }
+        }
+
+        public async Task AddSpectralRoles(Discord.WebSocket.SocketUser Author, Rank rank)
+        {
+            var Us = (Discord.WebSocket.SocketGuildUser)Author;
+
+            // First add the non-digit role.
+            string nonDigitSpectralName = rank.SpectralMetalPrint();
+            var spectralRole = this._socket.Roles.FirstOrDefault(x => x.Name == nonDigitSpectralName);
+            if (spectralRole != null)
+            {
+                await Us.AddRoleAsync(spectralRole);
+            }
+
+            // Then, if the rank has a digit role, add that too.
+            if (rank.Digits())
+            {
+                string digitSpectralName = rank.SpectralFullPrint();
+                var digitSpectralRole = _socket.Roles.FirstOrDefault(x => x.Name == digitSpectralName);
+                if (digitSpectralRole != null)
+                {
+                    await Us.AddRoleAsync(digitSpectralRole);
+                }
+            }
+        }
+        public async Task UpdateRoles(ulong discordID, Rank newRank, bool userDoNotDisturb)
+        {
+            SocketGuildUser player = _socket.Users.FirstOrDefault(x => x.Id == discordID);
+            if (player == null)
+            {
+                // The player probably left the Discord guild; we do not proceed.
+                return;
+            }
+
+            await RemoveAllRankRoles(player);
+
+            if (userDoNotDisturb)
+            {
+                Console.WriteLine("Updating spectral roles only for player " + player.Username);
+                await AddSpectralRoles(player, newRank);
+            }
+            else
+            {
+                Console.WriteLine("Updating all roles only for player " + player.Username);
+                await AddSpectralRoles(player, newRank);
+                await AddLoudRoles(player, newRank);
+            }
         }
     }
 

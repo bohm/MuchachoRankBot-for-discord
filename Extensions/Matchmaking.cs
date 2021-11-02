@@ -109,7 +109,7 @@ namespace RankBot.Extensions
             return sb.ToString();
         }
 
-        public async Task BuildTeams(Bot bot, Discord.WebSocket.ISocketMessageChannel channel, params string[] tenPeople)
+        public async Task BuildTeams(Bot bot, ulong sourceGuild, Discord.WebSocket.ISocketMessageChannel channel, params string[] tenPeople)
         {
             List<string> playerNames = new List<string>();
             List<ulong> playerIDs = new List<ulong>();
@@ -125,7 +125,7 @@ namespace RankBot.Extensions
             foreach (string username in tenPeople)
             {
 
-                SocketGuildUser person = bot.dwrap.UserByName(username);
+                SocketGuildUser person = bot.GetGuildUser(username, sourceGuild);
                 if (person == null)
                 {
                     await channel.SendMessageAsync($"The name \"{username}\" not matched to a Discord user.");
@@ -136,7 +136,7 @@ namespace RankBot.Extensions
 
                 // Before trying to check MMR first, check if users are even tracked.
 
-                if (!bot.DiscordUplay.ContainsKey(person.Id))
+                if (!bot._data.DiscordUplay.ContainsKey(person.Id))
                 {
                     await channel.SendMessageAsync($"The name \"{username}\" does not seem to be tracked.");
                     return;
@@ -147,7 +147,7 @@ namespace RankBot.Extensions
             {
                 string player = playerNames[i];
                 ulong disId = playerIDs[i];
-                string uplayId = bot.DiscordUplay[disId];
+                string uplayId = bot._data.DiscordUplay[disId];
                 TrackerDataSnippet data = new TrackerDataSnippet(0, -1);
                 try
                 {

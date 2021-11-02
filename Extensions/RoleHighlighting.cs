@@ -9,6 +9,60 @@ using Discord.WebSocket;
 
 namespace RankBot.Extensions
 {
+    /// <summary>
+    /// The main highlighting class. We can this of it as an extension of Bot(). Provides a Filter() function independent on the guilds.
+    /// </summary>
+    class MainHighlighter
+    {
+        bool fullInit = false;
+        private DiscordGuilds _guilds;
+        private Dictionary<ulong, RoleHighlighting> individualHLs; // An individual highlighter for each guild, indexed by the guild ID.
+
+        /// <summary>
+        /// A constructor that may only be called once the connection with the Discord API is made and we can pass the full list
+        /// of all Discord guilds.
+        /// </summary>
+        /// <param name="allGuilds"></param>
+        public MainHighlighter(DiscordGuilds allGuilds)
+        {
+            individualHLs = new Dictionary<ulong, RoleHighlighting>();
+            _guilds = allGuilds;
+
+            foreach((var guildID, var guild) in _guilds.byID)
+            {
+                RoleHighlighting singleHL = new RoleHighlighting(guild);
+                individualHLs.Add(guildID, singleHL);
+            }
+
+            fullInit = true;
+        }
+
+        /// <summary>
+        /// A global filtering function that can be used on all incoming messages.
+        /// </summary>
+        /// <param name="rawmsg"></param>
+        /// <returns></returns>
+        public async Task Filter(SocketMessage rawmsg)
+        {
+            // We refuse to process anything until the full initialization is complete.
+            if (! fullInit)
+            {
+                return;
+            }
+
+            SocketUserMessage message = rawmsg as SocketUserMessage;
+            if (message is null || message.Author.IsBot)
+            {
+                return; // Ignore all bot messages and empty messages.
+            }
+
+            // We need to figure out the guild of origin for the message. There might be a simple way of doing this.
+            SocketTextChannel contextChannel = (SocketTextChannel) message.Channel;
+            ulong sourceGuild = contextChannel.Guild.Id;
+            await individualHLs[sourceGuild].Filter(rawmsg);
+        }
+    }
+
     class RoleHighlighting
     {
         private DiscordGuild _dg; // The Discord guild (server) that this instance of RoleHighlighting operates on.
@@ -36,6 +90,36 @@ namespace RankBot.Extensions
             RoleHighlighting.ConcatenateWithOr(sb, _upperCaseLoudDigitRoles, _lowerCaseLoudDigitRoles, _upperCaseLoudMetalRoles, _lowerCaseLoudMetalRoles);
             RoleHighlighting.AppendSpecialOrEndline(sb);
             RegexMatcher = sb.ToString();
+
+
+            // Populate _roleNameToID.
+            foreach (string name in Ranking.LoudMetalRoles)
+            {
+                SocketRole role = _dg._socket.Roles.FirstOrDefault(x => x.Name == name);
+                if (role == null)
+                {
+                    Console.WriteLine($"The role {name} has not been found in server {_dg.GetName()}. Populate the Discord server with roles before you start this extensions.");
+                    throw new Exception();
+                }
+                else
+                {
+                    _roleNameToID.Add(name, role.Id);
+                }
+            }
+
+            foreach (string name in Ranking.LoudDigitRoles)
+            {
+                SocketRole role = _dg._socket.Roles.FirstOrDefault(x => x.Name == name);
+                if (role == null)
+                {
+                    Console.WriteLine($"The role {name} has not been found in server {_dg.GetName()}. Populate the Discord server with roles before you start this extensions.");
+                    throw new Exception();
+                }
+                else
+                {
+                    _roleNameToID.Add(name, role.Id);
+                }
+            }
         }
 
         public static string FirstToUppercase(string s)
@@ -93,42 +177,6 @@ namespace RankBot.Extensions
             sb.Append(@"(?:\W|$)");
         }
 
-        /// <summary>
-        /// Initialization that is only possible when Discord API is fully operational. It may not be possible at construction time.
-        /// </summary>
-        public void DelayedInit()
-        {
-            // Populate _roleNameToID.
-            foreach (string name in Ranking.LoudMetalRoles)
-            {
-                SocketRole role = _dg._socket.Roles.FirstOrDefault(x => x.Name == name);
-                if (role == null)
-                {
-                    Console.WriteLine($"The role {name} has not been found in server {_dg.GetName()}. Populate the Discord server with roles before you start this extensions.");
-                    throw new Exception();
-                }
-                else
-                {
-                    _roleNameToID.Add(name, role.Id);
-                }
-            }
-
-            foreach (string name in Ranking.LoudDigitRoles)
-            {
-                SocketRole role = _dg._socket.Roles.FirstOrDefault(x => x.Name == name);
-                if (role == null)
-                {
-                    Console.WriteLine($"The role {name} has not been found in server {_dg.GetName()}. Populate the Discord server with roles before you start this extensions.");
-                    throw new Exception();
-                }
-                else
-                {
-                    _roleNameToID.Add(name, role.Id);
-                }
-            }
-
-        }
-
         public List<string> RolesToHighlight(string haystack)
         {
             List<string> ret = new List<string>();
@@ -145,11 +193,8 @@ namespace RankBot.Extensions
 
         public async Task Filter(SocketMessage rawmsg)
         {
-            var message = rawmsg as SocketUserMessage;
-            if (message is null || message.Author.IsBot)
-            {
-                return; // Ignore all bot messages and empty messages.
-            }
+            SocketUserMessage message = rawmsg as SocketUserMessage;
+
             if (!Settings.RoleHighlightChannels.Contains(message.Channel.Name))
             {
                 return; // Ignore all channels except the allowed ones.
