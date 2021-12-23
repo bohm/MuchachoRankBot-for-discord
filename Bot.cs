@@ -416,7 +416,7 @@ namespace RankBot
             backup.BackupToFile(Settings.backupFile);
 
             // Additionally, write the backup to Discord itself, so we can bootstrap from the Discord server itself and don't need any local files.
-            SocketTextChannel backupChannel = dg._socket.TextChannels.SingleOrDefault(ch => ch.Name == Settings.PrimaryGuildBackupChannel);
+            SocketTextChannel backupChannel = _primary._socket.TextChannels.SingleOrDefault(ch => ch.Name == Settings.PrimaryGuildBackupChannel);
             if (backupChannel != null)
             {
                 // First, delete the previous backup. (This is why we also have a secondary backup.)
@@ -444,7 +444,7 @@ namespace RankBot
         private async Task UpdateAndBackup(object _)
         {
             await UpdateAll();
-            await BackupMappings();
+            await PerformBackup();
         }
 
         public string get_botStatus()
