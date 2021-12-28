@@ -36,14 +36,16 @@ namespace RankBot.Commands
         }
 
         [Command("resetuser")]
-        public async Task ResetUser(ulong id)
+        public async Task ResetUser(string discordUsername)
         {
             if (!(await InstanceCheck() && await OperatorCheck(Context.Message.Author.Id)))
             {
                 return;
             }
 
-            Discord.WebSocket.SocketGuildUser target = Bot.Instance.dwrap.ResidentGuild.Users.FirstOrDefault(x => x.Id == id);
+            //DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            Discord.WebSocket.SocketGuildUser target = Bot.Instance.GetGuildUser(discordUsername, Context.Guild.Id);
+            // Mild TODO: Potentially warn if >= 2 results here.
             if (target == null)
             {
                 await ReplyAsync("The provided ID does not match any actual user.");
@@ -51,9 +53,16 @@ namespace RankBot.Commands
             }
             else
             {
-                await ReplyAsync("Erasing all roles and ranks from the user named " + target.Username);
-                await Bot.Instance.dwrap.ClearAllRanks(target);
-                await Bot.Instance.RemoveFromDatabases(id);
+                await ReplyAsync($"Erasing all roles and ranks from the user {target.Username} from all guilds. ");
+                foreach (var guild in Bot.Instance.guilds.guildList)
+                {
+                    if (guild.IsGuildMember(target.Id))
+                    {
+                        await guild.RemoveAllRankRoles(target);
+                    }
+                }
+
+                await Bot.Instance._data.RemoveFromDatabases(target.Id);
             }
         }
 
@@ -68,46 +77,37 @@ namespace RankBot.Commands
                 return;
             }
 
-            var matchedUsers = Bot.Instance.dwrap.ResidentGuild.Users.Where(x => x.Username.Equals(discordUsername));
-
-            if (matchedUsers.Count() == 0)
+            Discord.WebSocket.SocketGuildUser target = Bot.Instance.GetGuildUser(discordUsername, Context.Guild.Id);
+            // Mild TODO: Potentially warn if >= 2 results here.
+            if (target == null)
             {
-                await ReplyAsync("There is no user matching the Discord nickname " + discordUsername + ".");
+                await ReplyAsync("The provided ID does not match any actual user.");
                 return;
             }
-
-            if (matchedUsers.Count() > 1)
-            {
-                await ReplyAsync("Two or more users have the same matching Discord nickname. This command cannot continue.");
-                return;
-            }
-
-            Discord.WebSocket.SocketGuildUser rightUser = matchedUsers.First();
 
             try
             {
-                string authorR6TabId = await Bot.Instance.QueryMapping(rightUser.Id);
-
-                if (authorR6TabId == null)
-                {
-                    await ReplyAsync($"User {rightUser.Username} not tracked.");
+                if (! await Bot.Instance._data.UserTracked(target.Id))
+                    {
+                    await ReplyAsync($"User {target.Username} not tracked.");
                     return;
+
                 }
 
-                bool ret = await Bot.Instance.UpdateOne(rightUser.Id);
+                bool ret = await Bot.Instance.UpdateOne(target.Id);
 
                 if (ret)
                 {
-                    await ReplyAsync($"User {rightUser.Username} updated.");
+                    await ReplyAsync($"User {target.Username} updated.");
                     // Print user's rank too.
-                    Rank r = .GetCurrentRank(authorR6TabId);
+                    Rank r = await Bot.Instance._data.QueryRank(target.Id);
                     if (r.Digits())
                     {
-                        await ReplyAsync($"We see {rightUser.Username}'s rank as {r.FullPrint()}");
+                        await ReplyAsync($"We see {target.Username}'s rank as {r.FullPrint()}");
                     }
                     else
                     {
-                        await ReplyAsync($"We see {rightUser.Username}'s rank as {r.CompactFullPrint()}");
+                        await ReplyAsync($"We see {target.Username}'s rank as {r.CompactFullPrint()}");
                     }
                 }
                 else

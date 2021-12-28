@@ -6,13 +6,16 @@ using System.Text;
 
 namespace RankBot
 {
-
-    class BackupGuildConfiguration
+    class SingleGuildConfig
     {
         public ulong id;
         public string reportChannel;
         public List<string> commandChannels;
         public List<string> roleHighlightChannels;
+    }
+    class BackupGuildConfiguration
+    {
+        public List<SingleGuildConfig> guildList;
 
         public static BackupGuildConfiguration RestoreFromFile(string fileName)
         {
@@ -61,6 +64,30 @@ namespace RankBot
             }
 
             return sb.ToString();
+        }
+    }
+
+    class GuildConfigTest
+    {
+        public static void Run()
+        {
+            var gc = new BackupGuildConfiguration();
+
+            var controlCenter = new SingleGuildConfig();
+            controlCenter.id = Settings.ControlGuild;
+            controlCenter.reportChannel = "report-testing";
+            controlCenter.roleHighlightChannels = new List<string> {"highlight-testing"};
+            controlCenter.commandChannels = new List<string> { "command-testing" };
+
+            var chillServer = new SingleGuildConfig();
+            chillServer.id = 620608384227606528;
+            chillServer.commandChannels = new List<string> { "🦾rank-bot", "rank-bot-admin" };
+            chillServer.reportChannel = "🦾rank-bot";
+            chillServer.roleHighlightChannels = new List<string> {"🔍hledám-spoluhráče"};
+
+            gc.guildList.Add(controlCenter);
+            gc.guildList.Add(chillServer);
+            Console.WriteLine(gc.BackupToString());
         }
     }
 

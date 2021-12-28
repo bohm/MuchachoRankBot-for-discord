@@ -10,8 +10,9 @@ namespace RankBot
 
         // ID of the guild where the channel with all internal data can be found.
         // If the bot is to be run on multiple Discord servers (guild), this should be a server where you have owner privileges.
-        public static readonly ulong PrimaryServer = 903649099541270528;
+        public static readonly ulong ControlGuild = 903649099541270528;
         public const string PrimaryConfigurationChannel = "primary-configuration";
+        public static readonly string DataBackupChannel = "data-backups";
         // If the primary configuration channel is empty, the following file is read instead.
         public const string PrimaryConfigurationFile = @"primary.json";
 
@@ -38,7 +39,6 @@ namespace RankBot
         public static readonly bool UsingExtensionBanTracking = true;
 
         public static readonly string[] RoleHighlightChannels = { "🔍hledám-spoluhráče", "hledame-testing" };
-        public static readonly string PrimaryGuildBackupChannel = "rank-bot-backups";
         // Computes a colour based on the role type
         public static Discord.Color roleColor(string roleName)
         {

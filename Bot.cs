@@ -19,12 +19,13 @@ namespace RankBot
     class Bot
     {
         public static Bot Instance;
+        public bool constructionComplete = false;
+
         // public DiscordWrapper dwrap;
         private DiscordSocketClient client;
         private CommandService commands;
         private IServiceProvider services;
         private bool roleInitComplete = false;
-        private bool constructionComplete = false;
         private bool _primaryServerLoaded = false;
         private string botStatus = Settings.botStatus;
 
@@ -34,7 +35,7 @@ namespace RankBot
         private PrimaryDiscordGuild _primary;
         // The other guilds (possibly including the primary one) where tracking and interfacing with users take place.
         // private List<DiscordGuild> _guildList;
-        private DiscordGuilds _guilds;
+        public DiscordGuilds guilds;
 
         // Parameters used by extensions, might be null if extensions are turned off.
         private Extensions.MainHighlighter _highlighter;
@@ -60,12 +61,12 @@ namespace RankBot
 
             if (Settings.UsingExtensionBanTracking)
             {
-                _bt = new Extensions.BanTracking(_guilds);
+                _bt = new Extensions.BanTracking(guilds);
             }
 
             if (Settings.UsingExtensionRoleHighlights)
             {
-                _highlighter = new Extensions.MainHighlighter(_guilds);
+                _highlighter = new Extensions.MainHighlighter(guilds);
             }
         }
 
@@ -107,12 +108,12 @@ namespace RankBot
                     recoverData.bds = new Extensions.BanDataStructure();
                 }
 
-                _bt = new Extensions.BanTracking(_guilds, recoverData.bds);
+                _bt = new Extensions.BanTracking(guilds, recoverData.bds);
             }
 
             if (Settings.UsingExtensionRoleHighlights)
             {
-                _highlighter = new Extensions.MainHighlighter(_guilds);
+                _highlighter = new Extensions.MainHighlighter(guilds);
             }
 
             Console.WriteLine("Loaded " + _data.DiscordUplay.Count + " discord -- uplay connections.");
@@ -126,7 +127,7 @@ namespace RankBot
         {
             await _data.MakePlayerLoud(discordID);
             Rank r = await _data.QueryRank(discordID);
-            foreach (DiscordGuild g in _guilds.byID.Values)
+            foreach (DiscordGuild g in guilds.byID.Values)
             {
                 if (g.IsGuildMember(discordID))
                 {
@@ -139,7 +140,7 @@ namespace RankBot
         public async Task QuietenUserAndTakeRoles(ulong discordID)
         {
             await _data.ShushPlayer(discordID);
-            foreach (DiscordGuild g in _guilds.byID.Values)
+            foreach (DiscordGuild g in guilds.byID.Values)
             {
                 if (g.IsGuildMember(discordID))
                 {
@@ -203,7 +204,7 @@ namespace RankBot
             }
 
             BackupData bd = null;
-            SocketTextChannel backupChannel = _primary._socket.TextChannels.Single(ch => ch.Name == Settings.PrimaryGuildBackupChannel);
+            SocketTextChannel backupChannel = _primary._socket.TextChannels.Single(ch => ch.Name == Settings.DataBackupChannel);
             if (backupChannel == null)
             {
                 throw new PrimaryGuildException("Unable to find the primary data backup channel. Even if you are trying to restore from a file, create this channel first.");
@@ -243,11 +244,11 @@ namespace RankBot
         /// <returns></returns>
         public SocketGuildUser GetGuildUser(string discordName, ulong guildID)
         {
-            if (!_guilds.byID.ContainsKey(guildID))
+            if (!guilds.byID.ContainsKey(guildID))
             {
                 throw new GuildStructureException("We have tried to query a discord guild ID that doesn't exist.");
             }
-            return _guilds.byID[guildID]._socket.Users.FirstOrDefault(x => ((x.Username == discordName) || (x.Nickname == discordName)));
+            return guilds.byID[guildID]._socket.Users.FirstOrDefault(x => ((x.Username == discordName) || (x.Nickname == discordName)));
         }
 
 
@@ -260,10 +261,12 @@ namespace RankBot
             }
 
             bool userDoNotDisturb = await _data.QueryQuietness(discordID);
-            foreach (DiscordGuild guild in _guilds.byID.Values)
+            foreach (DiscordGuild guild in guilds.byID.Values)
             {
-
-                await guild.UpdateRoles(discordID, newRank, userDoNotDisturb);
+                if (guild.IsGuildMember(discordID))
+                {
+                    await guild.UpdateRoles(discordID, newRank, userDoNotDisturb);
+                }
             }
         }
 
@@ -325,7 +328,7 @@ namespace RankBot
 
             foreach( (var discordID, var uplayID) in _data.DiscordUplay)
             {
-                foreach (var guild in _guilds.byID.Values)
+                foreach (var guild in guilds.byID.Values)
                 {
                     SocketGuildUser player = guild._socket.Users.FirstOrDefault(x => x.Id == discordID);
                     if (player == null)
@@ -364,13 +367,13 @@ namespace RankBot
         public async Task<bool> UpdateOne(ulong discordID)
         {
             // Ignore everything until the API connection to all guilds is ready.
-            if (_guilds == null || !roleInitComplete)
+            if (guilds == null || !roleInitComplete)
             {
                 return false;
             }
 
 
-            if (! await _data.MappingContains(discordID))
+            if (! await _data.UserTracked(discordID))
             {
                 return false;
             }
@@ -384,12 +387,10 @@ namespace RankBot
         {
 
             // Ignore everything until the API connection to all guilds is ready.
-            if (_guilds == null || !roleInitComplete)
+            if (guilds == null || !roleInitComplete)
             {
                 return;
             }
-
-            // Mild TODO: We can take into considerations how much do we hold the lock here.
 
             System.Console.WriteLine("Updating player ranks (period:" + Settings.updatePeriod.ToString() + ").");
 
@@ -410,31 +411,12 @@ namespace RankBot
         public async Task PerformBackup()
         {
             BackupData backup = await _data.PrepareBackup();
+            _bt.ExtendBackup(backup);
 
             // We have the backup data now, we can continue without the lock, as long as this was indeed a deep copy.
             Console.WriteLine($"Saving backup data to {Settings.backupFile}.");
             backup.BackupToFile(Settings.backupFile);
-
-            // Additionally, write the backup to Discord itself, so we can bootstrap from the Discord server itself and don't need any local files.
-            SocketTextChannel backupChannel = _primary._socket.TextChannels.SingleOrDefault(ch => ch.Name == Settings.PrimaryGuildBackupChannel);
-            if (backupChannel != null)
-            {
-                // First, delete the previous backup. (This is why we also have a secondary backup.)
-                var messages = backupChannel.GetMessagesAsync().Flatten();
-                var msgarray = await messages.ToArrayAsync();
-                if (msgarray.Count() > 1)
-                {
-                    Console.WriteLine($"The bot wishes not to delete only 1 message, found {msgarray.Count()}.");
-                }
-
-                if (msgarray.Count() == 1)
-                {
-                    await backupChannel.DeleteMessageAsync(msgarray[0]);
-                }
-
-                // Now, upload the new backup.
-                await backupChannel.SendFileAsync(Settings.backupFile, $"Backup file rsixbot.json created at {DateTime.Now.ToShortTimeString()}.");
-            }
+            await _primary.BackupFileToMessage(Settings.backupFile, Settings.DataBackupChannel);
         }
 
         /// <summary>
@@ -541,6 +523,8 @@ namespace RankBot
         {
 
             // TESTS
+            GuildConfigTest.Run();
+
             /*
             string tester;
             R6TabDataSnippet snippet;
@@ -604,7 +588,7 @@ namespace RankBot
             (bool TeenagersBanned, int TeenBanCode) = b.CheckUserBan("71f7dd7b-fae0-4341-8788-c00085a7963d"); // Some teenagers guy, current ban: toxic behavior.
             (bool MartyBanned, int MartyBanCode) = b.CheckUserBan("6bc4610c-4ad4-4ee0-8173-284677e3140b"); // Marty.GLS
             Console.WriteLine($"Orson {DuoOrsonBanned} with code {OrsBanCode}, teenagers {TeenagersBanned} with code {TeenBanCode}, Marty {MartyBanned} with code {MartyBanCode}"); */
-            await new Bot().RunBotAsync();
+            // await new Bot().RunBotAsync();
 
         }
     }

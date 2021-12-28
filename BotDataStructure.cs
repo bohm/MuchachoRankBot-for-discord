@@ -20,23 +20,9 @@ namespace RankBot
         // The semaphore (in fact a mutex) that blocks the access to DoNotTrack and DiscordUplay
         private readonly SemaphoreSlim Access;
 
-        // Extension data structures.
-        private Extensions.RoleHighlighting _rh;
-        public Extensions.BanTracking bt;
-
         public BotDataStructure()
         {
             Access = new SemaphoreSlim(1, 1);
-            if (Settings.UsingExtensionRoleHighlights)
-            {
-                _rh = new Extensions.RoleHighlighting(dwrap);
-            }
-
-            if (Settings.UsingExtensionBanTracking)
-            {
-                bt = new Extensions.BanTracking(dwrap);
-            }
-   
             DiscordUplay = new Dictionary<ulong, string>();
             QuietPlayers = new HashSet<ulong>();
             DiscordRanks = new Dictionary<ulong, Rank>();
@@ -45,17 +31,16 @@ namespace RankBot
         public BotDataStructure(BackupData backup)
         {
             Access = new SemaphoreSlim(1, 1);
-            if (Settings.UsingExtensionRoleHighlights)
-            {
-
-            }
-
-            if (Settings.UsingExtensionBanTracking)
-            {
-
-            }
+            DiscordUplay = backup.discordUplayDict;
+            QuietPlayers = backup.quietSet;
+            DiscordRanks = backup.discordRanksDict;
         }
 
+        /// <summary>
+        /// Creates a copy of the current data structures for backup.
+        /// Extensions need to be handled separately.
+        /// </summary>
+        /// <returns></returns>
         public async Task<BackupData> PrepareBackup()
         {
             await Access.WaitAsync();
@@ -64,12 +49,6 @@ namespace RankBot
             data.discordUplayDict = new Dictionary<ulong, string>(DiscordUplay);
             data.quietSet = new HashSet<ulong>(QuietPlayers);
             Access.Release();
-
-            if (Settings.UsingExtensionBanTracking)
-            {
-                data.bds = bt.DuplicateData();
-            }
-
             return data;
         }
 
@@ -82,7 +61,7 @@ namespace RankBot
         }
 
 
-        public async Task<bool> MappingContains(ulong discordID)
+        public async Task<bool> UserTracked(ulong discordID)
         {
             await Access.WaitAsync();
             bool contains = DiscordUplay.ContainsKey(discordID);

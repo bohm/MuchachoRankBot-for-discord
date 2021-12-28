@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Discord;
 using Discord.WebSocket;
 
 namespace RankBot
@@ -13,11 +14,11 @@ namespace RankBot
         public Dictionary<string, DiscordGuild> byName;
         public Dictionary<ulong, DiscordGuild> byID;
 
-        public DiscordGuilds(List<BackupGuildConfiguration> guildConfs, DiscordSocketClient sc)
+        public DiscordGuilds(BackupGuildConfiguration guildConfs, DiscordSocketClient sc)
         {
             byName = new Dictionary<string, DiscordGuild>();
             byID = new Dictionary<ulong, DiscordGuild>();
-            foreach (var gc in guildConfs)
+            foreach (var gc in guildConfs.guildList)
             {
                 DiscordGuild guild = new DiscordGuild(gc, sc);
                 guildList.Add(guild);
@@ -33,9 +34,9 @@ namespace RankBot
     {
         public SocketGuild _socket; // mild TODO: make this private in the future.
         private List<string> _reports;
-        public BackupGuildConfiguration Config;
+        public SingleGuildConfig Config;
  
-        public DiscordGuild(BackupGuildConfiguration gc, DiscordSocketClient sc)
+        public DiscordGuild(SingleGuildConfig gc, DiscordSocketClient sc)
         {
             Config = gc;
             _socket = sc.GetGuild(Config.id);
@@ -205,8 +206,32 @@ namespace RankBot
         public SocketGuild _socket; // soft TODO: make private
         public PrimaryDiscordGuild(DiscordSocketClient sc)
         {
-            _socket = sc.GetGuild(Settings.PrimaryServer);
+            _socket = sc.GetGuild(Settings.ControlGuild);
             Console.WriteLine($"Connected to the primary Discord server {_socket.Name}.");
+        }
+
+        public async Task BackupFileToMessage(string dataFileLocation, string backupChannelName)
+        {
+            // Additionally, write the backup to Discord itself, so we can bootstrap from the Discord server itself and don't need any local files.
+            SocketTextChannel backupChannel = _socket.TextChannels.SingleOrDefault(ch => ch.Name == backupChannelName);
+            if (backupChannel != null)
+            {
+                // First, delete the previous backup. (This is why we also have a secondary backup.)
+                var messages = backupChannel.GetMessagesAsync().Flatten();
+                var msgarray = await messages.ToArrayAsync();
+                if (msgarray.Count() > 1)
+                {
+                    Console.WriteLine($"The bot found {msgarray.Count()} messages but can only delete one due to safety. Aborting backup.");
+                }
+
+                if (msgarray.Count() == 1)
+                {
+                    await backupChannel.DeleteMessageAsync(msgarray[0]);
+                }
+
+                // Now, upload the new backup.
+                await backupChannel.SendFileAsync(dataFileLocation, $"Backup file created at {DateTime.Now.ToShortTimeString()}.");
+            }
         }
     }
 }

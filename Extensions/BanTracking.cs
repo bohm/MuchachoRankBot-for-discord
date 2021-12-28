@@ -155,17 +155,12 @@ namespace RankBot.Extensions
                     if (banned)
                     {
                         bds.BanDict[uplayId].BanType = banType;
-                        newlyBannedReports.Add(BuildBanReport(bds.BanDict[uplayId]));
-
+                        string report = BuildBanReport(bds.BanDict[uplayId]);
+                        _guilds.byID[bds.BanDict[uplayId].GuildWhereAsked].AddReport(report);
                     }
                 }
             }
             BanTreeAccess.Release();
-
-            if (newlyBannedReports.Count >= 1)
-            {
-                await _dw.PublishBotReports(newlyBannedReports);
-            }
         }
 
         public async Task InsertSuspect(string uplayId, string originalNick, ulong reporterID, ulong discordWhereAsked)
@@ -215,6 +210,10 @@ namespace RankBot.Extensions
             return $"Podezrely {newlyBannedUser.OriginalUplayName} dostal ban. Clen Discordu <@{newlyBannedUser.ReporterId}> mel pravdu! Cheateruv profil na StatsDB: {statsDBUrl} .";
         }
 
+        public async void ExtendBackup(BackupData data)
+        {
+            data.bds = DuplicateData();
+        }
         public async void UpdateStructure(object _)
         {
             // Requests and releases the lock for us.
@@ -234,6 +233,7 @@ namespace RankBot.Extensions
                         {
                             bds.BanDict[uplayId].Banned = true;
                             bds.BanDict[uplayId].BanType = newreason;
+
                             // Create a ban report.
                             newlyBannedReports.Add(new Tuple<ulong,string>(bds.BanDict[uplayId].GuildWhereAsked, BuildBanReport(bds.BanDict[uplayId])));
                         }
@@ -246,10 +246,8 @@ namespace RankBot.Extensions
             {
                 foreach ((ulong guildID, string report) in newlyBannedReports)
                 {
-
+                    _guilds.byID[guildID].AddReport(report);
                 }
-                await _guilds.byID[]
-                await _dw.PublishBotReports(newlyBannedReports);
             }
             Console.WriteLine($"Performed {NumberOfQueries} queries from the last update structure task to the present.");
             NumberOfQueries = 0;
