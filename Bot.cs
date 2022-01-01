@@ -39,7 +39,7 @@ namespace RankBot
 
         // Parameters used by extensions, might be null if extensions are turned off.
         private Extensions.MainHighlighter _highlighter;
-        private Extensions.BanTracking _bt;
+        public Extensions.BanTracking bt;
 
         public Bot()
         {
@@ -61,7 +61,7 @@ namespace RankBot
 
             if (Settings.UsingExtensionBanTracking)
             {
-                _bt = new Extensions.BanTracking(guilds);
+                bt = new Extensions.BanTracking(guilds);
             }
 
             if (Settings.UsingExtensionRoleHighlights)
@@ -108,7 +108,7 @@ namespace RankBot
                     recoverData.bds = new Extensions.BanDataStructure();
                 }
 
-                _bt = new Extensions.BanTracking(guilds, recoverData.bds);
+                bt = new Extensions.BanTracking(guilds, recoverData.bds);
             }
 
             if (Settings.UsingExtensionRoleHighlights)
@@ -236,21 +236,58 @@ namespace RankBot
             return bd;
         }
 
-        /// <summary>
-        /// Fetches a user when given the ID of a guild (server) they are in as well as their discord name/nickname.
-        /// </summary>
-        /// <param name="discordName"></param>
-        /// <param name="guildID"></param>
-        /// <returns></returns>
-        public SocketGuildUser GetGuildUser(string discordName, ulong guildID)
+        public async Task TrackUser(DiscordGuild g, ulong discordID, string uplayNickname, string relevantChannelName)
         {
-            if (!guilds.byID.ContainsKey(guildID))
+            try
             {
-                throw new GuildStructureException("We have tried to query a discord guild ID that doesn't exist.");
-            }
-            return guilds.byID[guildID]._socket.Users.FirstOrDefault(x => ((x.Username == discordName) || (x.Nickname == discordName)));
-        }
+                // SocketGuildUser trackedPerson = g.GetSingleUser(discordID);
+                string queryR6ID = await _data.QueryMapping(discordID);
+                if (queryR6ID != null)
+                {
+                    await g.ReplyToUser("Vas discord ucet uz sledujeme. / We are already tracking your Discord account.", relevantChannelName, discordID);
+                    return;
+                }
 
+                string r6TabId = await TRNHttpProvider.GetID(uplayNickname);
+
+                if (r6TabId == null)
+                {
+                    await g.ReplyToUser("Nepodarilo se nam najit vas Uplay ucet. / We failed to find your Uplay account data.", relevantChannelName, discordID);
+                    return;
+                }
+                await _data.InsertIntoMapping(discordID, r6TabId);
+                await g.ReplyToUser($"Nove sledujeme vase uspechy pod prezdivkou {uplayNickname} na platforme PC. / We now track you as {uplayNickname} on PC.", relevantChannelName, discordID);
+
+                // Update the newly added user.
+
+                bool ret = await Bot.Instance.UpdateOne(discordID);
+
+                if (ret)
+                {
+                    // Print user's rank too.
+                    Rank r = await TRNHttpProvider.GetCurrentRank(r6TabId);
+                    if (r.Digits())
+                    {
+                        await g.ReplyToUser($"Aktualne vidime vas rank jako {r.FullPrint()}", relevantChannelName, discordID);
+                    }
+                    else
+                    {
+                        await g.ReplyToUser($"Aktualne vidime vas rank jako {r.CompactFullPrint()}", relevantChannelName, discordID);
+                    }
+                }
+                else
+                {
+                    await g.ReplyToUser("Stala se chyba pri nastaven noveho ranku.", relevantChannelName, discordID);
+                }
+
+
+            }
+            catch (RankParsingException e)
+            {
+                await g.ReplyToUser("Communication to the R6Tab server failed. Please try again or contact the local Discord admins.", relevantChannelName, discordID);
+                await g.Reply("Pro admina: " + e.Message, relevantChannelName);
+            }
+        }
 
         public async Task UpdateRoles(ulong discordID, Rank newRank)
         {
@@ -411,7 +448,7 @@ namespace RankBot
         public async Task PerformBackup()
         {
             BackupData backup = await _data.PrepareBackup();
-            _bt.ExtendBackup(backup);
+            bt.ExtendBackup(backup);
 
             // We have the backup data now, we can continue without the lock, as long as this was indeed a deep copy.
             Console.WriteLine($"Saving backup data to {Settings.backupFile}.");
@@ -475,7 +512,7 @@ namespace RankBot
             }
 
             // Timer updateTimer = new Timer(new TimerCallback(UpdateAndBackup), null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(60));
-            Timer banTimer = new Timer(new TimerCallback(_bt.UpdateStructure), null, TimeSpan.FromMinutes(2), TimeSpan.FromHours(12));
+            Timer banTimer = new Timer(new TimerCallback(bt.UpdateStructure), null, TimeSpan.FromMinutes(2), TimeSpan.FromHours(12));
             while (true)
             {
                 // We do the big update also in a separate thread.

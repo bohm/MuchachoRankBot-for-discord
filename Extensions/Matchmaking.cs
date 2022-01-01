@@ -122,10 +122,15 @@ namespace RankBot.Extensions
                 return;
             }
 
+            if (!bot.guilds.byID.ContainsKey(sourceGuild))
+            {
+                throw new GuildStructureException("Something went wrong -- the selected guild ID was not found before matchmaking.");
+            }
+
+            DiscordGuild guild = bot.guilds.byID[sourceGuild];
             foreach (string username in tenPeople)
             {
-
-                SocketGuildUser person = bot.GetGuildUser(username, sourceGuild);
+                SocketGuildUser person = guild.GetSingleUser(username);
                 if (person == null)
                 {
                     await channel.SendMessageAsync($"The name \"{username}\" not matched to a Discord user.");

@@ -62,9 +62,15 @@ namespace RankBot
 
             var Author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
 
-            await Bot.Instance.dwrap.ClearAllRanks(Author);
-            await Bot.Instance._data.RemoveFromDatabases(Author.Id);
-            await ReplyAsync(Author.Username + ": Smazali jsme o vas vsechny informace. Muzete se nechat znovu trackovat.");
+            foreach (DiscordGuild g in Bot.Instance.guilds.byID.Values)
+            {
+                if (g.IsGuildMember(Author.Id))
+                {
+                    await g.RemoveAllRankRoles(Author.Id);
+                    await Bot.Instance._data.RemoveFromDatabases(Author.Id);
+                    await ReplyAsync(Author.Username + ": Smazali jsme o vas vsechny informace. Muzete se nechat znovu trackovat.");
+                }
+            }
         }
         [Command("track")]
         public async Task Track(string nick)
@@ -220,7 +226,8 @@ namespace RankBot
                 return;
             }
             var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
-            var target = Bot.Instance.GetGuildUser(discordNick, Context.Guild.Id);
+            DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            var target = contextGuild.GetSingleUser(discordNick);
             if (target == null)
             {
                 await ReplyAsync(author.Username + ": Nenasli jsme cloveka ani podle prezdivky, ani podle Discord jmena.");

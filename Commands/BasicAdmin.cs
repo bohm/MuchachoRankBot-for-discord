@@ -43,9 +43,9 @@ namespace RankBot.Commands
                 return;
             }
 
-            //DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
-            Discord.WebSocket.SocketGuildUser target = Bot.Instance.GetGuildUser(discordUsername, Context.Guild.Id);
-            // Mild TODO: Potentially warn if >= 2 results here.
+            DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            Discord.WebSocket.SocketGuildUser target = contextGuild.GetSingleUser(discordUsername);
+
             if (target == null)
             {
                 await ReplyAsync("The provided ID does not match any actual user.");
@@ -77,8 +77,9 @@ namespace RankBot.Commands
                 return;
             }
 
-            Discord.WebSocket.SocketGuildUser target = Bot.Instance.GetGuildUser(discordUsername, Context.Guild.Id);
-            // Mild TODO: Potentially warn if >= 2 results here.
+            DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            Discord.WebSocket.SocketGuildUser target = contextGuild.GetSingleUser(discordUsername);
+
             if (target == null)
             {
                 await ReplyAsync("The provided ID does not match any actual user.");
@@ -145,7 +146,7 @@ namespace RankBot.Commands
             }
 
             await ReplyAsync("Writing the current state of tracking into rsix.json.");
-            _ = Bot.Instance.BackupMappings();
+            _ = Bot.Instance.PerformBackup();
         }
 
         [Command("manualrank")]
@@ -159,7 +160,8 @@ namespace RankBot.Commands
 
             // match user from username
 
-            var matchedUsers = Bot.Instance.dwrap.ResidentGuild.Users.Where(x => x.Username.Equals(discordUsername));
+            DiscordGuild guild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            var matchedUsers = guild.GetAllUsers(discordUsername);
 
             if (matchedUsers.Count() == 0)
             {
@@ -199,7 +201,8 @@ namespace RankBot.Commands
                 return;
             }
 
-            var matchedUsers = Bot.Instance.dwrap.ResidentGuild.Users.Where(x => x.Username.Equals(discordUsername));
+            DiscordGuild guild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            var matchedUsers = guild.GetAllUsers(discordUsername);
 
             if (matchedUsers.Count() == 0)
             {
@@ -217,55 +220,8 @@ namespace RankBot.Commands
 
             if (rightUser != null)
             {
-                // TODO: Pasted here to be quick. Just refactor to have this as a function.
-                try
-                {
-                    string queryR6ID = await Bot.Instance.QueryMapping(rightUser.Id);
-                    if (queryR6ID != null)
-                    {
-                        await ReplyAsync(rightUser.Username + ": Vas discord ucet uz sledujeme. / We are already tracking your Discord account.");
-                        return;
-                    }
-
-                    string r6TabId = await TRNHttpProvider.GetID(nick);
-                    if (r6TabId == null)
-                    {
-                        await ReplyAsync(rightUser.Username + ": Nepodarilo se nam najit vas Uplay ucet. / We failed to find your Uplay account data.");
-                        return;
-                    }
-                    await Bot.Instance.InsertIntoMapping(rightUser.Id, r6TabId);
-                    await ReplyAsync(rightUser.Username + ": nove sledujeme vase uspechy pod prezdivkou " + nick + " na platforme pc v EU. / We now track you as " + nick + "on pc in the EU.");
-
-                    // Update the newly added user.
-
-                    bool ret = await Bot.Instance.UpdateOne(rightUser.Id);
-
-                    if (ret)
-                    {
-                        // Print user's rank too.
-                        Rank r = await TRNHttpProvider.GetCurrentRank(r6TabId);
-                        if (r.Digits())
-                        {
-                            await ReplyAsync(rightUser.Username + ": Aktualne vidime vas rank jako " + r.FullPrint());
-                        }
-                        else
-                        {
-                            await ReplyAsync(rightUser.Username + ": Aktualne vidime vas rank jako " + r.CompactFullPrint());
-                        }
-                    }
-                    else
-                    {
-                        await ReplyAsync(rightUser.Username + ": Stala se chyba pri nastaven noveho ranku.");
-                    }
-
-
-                }
-                catch (RankParsingException e)
-                {
-                    await ReplyAsync(rightUser.Username + ": Nepodarilo se nam najit vas Uplay ucet. Zkontrolujte si, ze jste napsali prezdivku presne i s velkymi pismeny. Je take mozne, ze r6tab.com aktualne nefunguje.");
-                    await ReplyAsync("Pro admina: " + e.Message);
-                    return;
-                }
+                // We do not await this one, no need -- it should respond on its own time.
+                _ = Bot.Instance.TrackUser(guild, rightUser.Id, nick, Context.Message.Channel.Name);
             }
         }
 

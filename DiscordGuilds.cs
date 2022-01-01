@@ -108,6 +108,15 @@ namespace RankBot
             _reports.Clear();
         }
 
+        public async Task RemoveAllRankRoles(ulong discordID)
+        {
+            if (IsGuildMember(discordID))
+            {
+                SocketGuildUser u = GetSingleUser(discordID);
+                await RemoveAllRankRoles(u);
+            }
+        }
+
         public async Task RemoveAllRankRoles(Discord.WebSocket.SocketGuildUser User)
         {
             System.Console.WriteLine("Removing all ranks from user " + User.Username);
@@ -127,6 +136,49 @@ namespace RankBot
             {
                 await Us.RemoveRoleAsync(LoudRole);
             }
+        }
+
+        public SocketGuildUser GetSingleUser(ulong discordId)
+        {
+            return _socket.Users.FirstOrDefault(x => ((x.Id == discordId)));
+        }
+        public SocketGuildUser GetSingleUser(string discNameOrNick)
+        {
+            return _socket.Users.FirstOrDefault(x => ((x.Username == discNameOrNick) || (x.Nickname == discNameOrNick)));
+        }
+
+        public IEnumerable<SocketGuildUser> GetAllUsers(string discNameOrNick)
+        {
+            return _socket.Users.Where(x => ((x.Username == discNameOrNick) || (x.Nickname == discNameOrNick)));
+
+        }
+
+        public async Task ReplyToUser(string message, string channelName, ulong userID)
+        {
+            var replyChannel = _socket.TextChannels.FirstOrDefault(x => (x.Name == channelName));
+            if (replyChannel == null)
+            {
+                return;
+            }
+
+            var user = this._socket.Users.FirstOrDefault(x => x.Id == userID);
+            string fullMessage = $"{user.Username}: {message}";
+            await replyChannel.SendMessageAsync(fullMessage);
+        }
+
+        public async Task Reply(string message, string channelName)
+        {
+            var replyChannel = _socket.TextChannels.FirstOrDefault(x => (x.Name == channelName));
+            if (replyChannel == null)
+            {
+                return;
+            }
+            await replyChannel.SendMessageAsync(message);
+        }
+
+        public async Task Report(string message)
+        {
+            await Reply(message, Config.reportChannel);
         }
 
         public async Task AddLoudRoles(Discord.WebSocket.SocketUser Author, Rank rank)

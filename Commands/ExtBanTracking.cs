@@ -37,7 +37,7 @@ namespace RankBot.Commands
 
             try
             {
-                await Bot.Instance.bt.InsertSuspect(uplayId, uplayNick, Context.Message.Author.Id);
+                await Bot.Instance.bt.InsertSuspect(uplayId, uplayNick, Context.Message.Author.Id, Context.Guild.Id);
                 await ReplyAsync($"{Context.Message.Author.Username}: Zacali jsme trackovat podezreleho. Kdyz dostane ban, dame vedet, nebo se zeptejte pomoci prikazu '!banned {uplayNick}'");
             }
             catch (Exception e)
