@@ -7,7 +7,7 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace R6RankBot
+namespace RankBot
 {
     public class BasicCommands : CommonBase
     {
@@ -35,9 +35,7 @@ namespace R6RankBot
             }
 
             var author = Context.Message.Author;
-            var guild = Context.Guild;
-            await Bot.Instance.dwrap.RemoveLoudRoles(author);
-            await Bot.Instance.ShushPlayer(author.Id);
+            await Bot.Instance.QuietenUserAndTakeRoles(author.Id);
             await ReplyAsync(author.Username + ": Odted nebudete notifikovani, kdyz nekdo oznaci vasi roli. Poslete prikaz !nahlas pro zapnuti notifikaci.");
         }
 
@@ -49,11 +47,9 @@ namespace R6RankBot
                 return;
             }
             // Add the user to any mentionable rank roles.
-            var Author = Context.Message.Author;
-            var Guild = Context.Guild;
-            await Bot.Instance.MakePlayerLoud(Author.Id);
-            await Bot.Instance.AddLoudRoles(Guild, Author);
-            await ReplyAsync(Author.Username + ": Nyni budete notifikovani, kdyz nekdo zapne vasi roli.");
+            var author = Context.Message.Author;
+            await Bot.Instance.LoudenUserAndAddRoles(author.Id);
+            await ReplyAsync(author.Username + ": Nyni budete notifikovani, kdyz nekdo zapne vasi roli.");
         }
 
         [Command("reset")]
@@ -66,9 +62,15 @@ namespace R6RankBot
 
             var Author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
 
-            await Bot.Instance.dwrap.ClearAllRanks(Author);
-            await Bot.Instance.RemoveFromDatabases(Author.Id);
-            await ReplyAsync(Author.Username + ": Smazali jsme o vas vsechny informace. Muzete se nechat znovu trackovat.");
+            foreach (DiscordGuild g in Bot.Instance.guilds.byID.Values)
+            {
+                if (g.IsGuildMember(Author.Id))
+                {
+                    await g.RemoveAllRankRoles(Author.Id);
+                    await Bot.Instance._data.RemoveFromDatabases(Author.Id);
+                    await ReplyAsync(Author.Username + ": Smazali jsme o vas vsechny informace. Muzete se nechat znovu trackovat.");
+                }
+            }
         }
         [Command("track")]
         public async Task Track(string nick)
@@ -81,7 +83,7 @@ namespace R6RankBot
             var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
             try
             {
-                string queryR6ID = await Bot.Instance.QueryMapping(author.Id);
+                string queryR6ID = await Bot.Instance._data.QueryMapping(author.Id);
                 if (queryR6ID != null)
                 {
                     await ReplyAsync(author.Username + ": Vas discord ucet uz sledujeme. / We are already tracking your Discord account.");
@@ -95,7 +97,7 @@ namespace R6RankBot
                     await ReplyAsync(author.Username + ": Nepodarilo se nam najit vas Uplay ucet. / We failed to find your Uplay account data.");
                     return;
                 }
-                await Bot.Instance.InsertIntoMapping(author.Id, r6TabId);
+                await Bot.Instance._data.InsertIntoMapping(author.Id, r6TabId);
                 await ReplyAsync(author.Username + ": nove sledujeme vase uspechy pod prezdivkou " + nick + " na platforme PC. / We now track you as " + nick + " on PC.");
 
                 // Update the newly added user.
@@ -105,7 +107,7 @@ namespace R6RankBot
                 if (ret)
                 {
                     // Print user's rank too.
-                    Rank r = await Bot.Instance.dwrap.GetCurrentRank(r6TabId);
+                    Rank r = await TRNHttpProvider.GetCurrentRank(r6TabId);
                     if (r.Digits())
                     {
                         await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + r.FullPrint());
@@ -121,11 +123,6 @@ namespace R6RankBot
                 }
 
 
-            }
-            catch (DoNotTrackException)
-            {
-                await ReplyAsync(author.Username + ": Jste Full Chill, vas rank aktualne nebudeme trackovat.");
-                return;
             }
             catch (RankParsingException)
             {
@@ -145,7 +142,7 @@ namespace R6RankBot
             try
             {
                 var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
-                string authorR6TabId = await Bot.Instance.QueryMapping(author.Id);
+                string authorR6TabId = await Bot.Instance._data.QueryMapping(author.Id);
 
                 if (authorR6TabId == null)
                 {
@@ -159,7 +156,7 @@ namespace R6RankBot
                 {
                     await ReplyAsync(author.Username + ": Aktualizovali jsme vase MMR a rank. Nezapomente, ze to jde jen jednou za 30 minut.");
                     // Print user's rank too.
-                    Rank r = await Bot.Instance.dwrap.GetCurrentRank(authorR6TabId);
+                    Rank r = await TRNHttpProvider.GetCurrentRank(authorR6TabId);
                     if (r.Digits())
                     {
                         await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + r.FullPrint());
@@ -191,7 +188,7 @@ namespace R6RankBot
             }
 
             var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
-            string authorR6TabId = await Bot.Instance.QueryMapping(author.Id);
+            string authorR6TabId = await Bot.Instance._data.QueryMapping(author.Id);
 
             if (authorR6TabId == null)
             {
@@ -203,7 +200,7 @@ namespace R6RankBot
                 try
                 {
 
-                    Rank r = await Bot.Instance.dwrap.GetCurrentRank(authorR6TabId);
+                    Rank r = await TRNHttpProvider.GetCurrentRank(authorR6TabId);
                     if (r.Digits())
                     {
                         await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + r.FullPrint());
@@ -229,16 +226,17 @@ namespace R6RankBot
                 return;
             }
             var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
-            var target = Bot.Instance.dwrap.UserByName(discordNick);
+            DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            var target = contextGuild.GetSingleUser(discordNick);
             if (target == null)
             {
                 await ReplyAsync(author.Username + ": Nenasli jsme cloveka ani podle prezdivky, ani podle Discord jmena.");
                 return;
             }
 
-            if (Bot.Instance.DiscordUplay.ContainsKey(target.Id))
+            if (Bot.Instance._data.DiscordUplay.ContainsKey(target.Id))
             {
-                string uplayId = Bot.Instance.DiscordUplay[target.Id];
+                string uplayId = Bot.Instance._data.DiscordUplay[target.Id];
                 // This is only the uplay id, the user name might be different. We have to query a tracker to get the current
                 // Uplay user name.
                 string uplayName = "";

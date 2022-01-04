@@ -6,9 +6,9 @@ using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using R6RankBot.Extensions;
+using RankBot.Extensions;
 
-namespace R6RankBot.Commands
+namespace RankBot.Commands
 {
     public class ExtMatchmaking : CommonBase
     {
@@ -23,9 +23,10 @@ namespace R6RankBot.Commands
             {
                 await ReplyAsync("Trying to matchmake, please give me a few seconds.");
                 Matchmaking m = new Matchmaking();
-                _ = m.BuildTeams(Bot.Instance, Context.Channel, users);
+                _ = m.BuildTeams(Bot.Instance, Context.Guild.Id, Context.Channel, users);
             }
 
         }
     }
 }
+    

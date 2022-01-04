@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 
-namespace R6RankBot
+namespace RankBot
 {
     public class CommonBase : ModuleBase<SocketCommandContext>
     {
@@ -16,9 +16,9 @@ namespace R6RankBot
         /// <returns>true if instance exists, false otherwise.</returns>
         protected async Task<bool> InstanceCheck()
         {
-            if (Bot.Instance == null)
+            if (Bot.Instance == null || !Bot.Instance.constructionComplete)
             {
-                await ReplyAsync("R6RankBot has no set server as a residence, it cannot proceed.");
+                await ReplyAsync("RankBot is not yet ready to process commands.");
 
                 return false;
             }

@@ -14,7 +14,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace R6RankBot.Extensions
+namespace RankBot.Extensions
 {
     class SubsetBuilder
     {
@@ -109,7 +109,7 @@ namespace R6RankBot.Extensions
             return sb.ToString();
         }
 
-        public async Task BuildTeams(Bot bot, Discord.WebSocket.ISocketMessageChannel channel, params string[] tenPeople)
+        public async Task BuildTeams(Bot bot, ulong sourceGuild, Discord.WebSocket.ISocketMessageChannel channel, params string[] tenPeople)
         {
             List<string> playerNames = new List<string>();
             List<ulong> playerIDs = new List<ulong>();
@@ -122,10 +122,15 @@ namespace R6RankBot.Extensions
                 return;
             }
 
+            if (!bot.guilds.byID.ContainsKey(sourceGuild))
+            {
+                throw new GuildStructureException("Something went wrong -- the selected guild ID was not found before matchmaking.");
+            }
+
+            DiscordGuild guild = bot.guilds.byID[sourceGuild];
             foreach (string username in tenPeople)
             {
-
-                SocketGuildUser person = bot.dwrap.UserByName(username);
+                SocketGuildUser person = guild.GetSingleUser(username);
                 if (person == null)
                 {
                     await channel.SendMessageAsync($"The name \"{username}\" not matched to a Discord user.");
@@ -136,7 +141,7 @@ namespace R6RankBot.Extensions
 
                 // Before trying to check MMR first, check if users are even tracked.
 
-                if (!bot.DiscordUplay.ContainsKey(person.Id))
+                if (!bot._data.DiscordUplay.ContainsKey(person.Id))
                 {
                     await channel.SendMessageAsync($"The name \"{username}\" does not seem to be tracked.");
                     return;
@@ -147,8 +152,8 @@ namespace R6RankBot.Extensions
             {
                 string player = playerNames[i];
                 ulong disId = playerIDs[i];
-                string uplayId = bot.DiscordUplay[disId];
-                R6TabDataSnippet data = new R6TabDataSnippet(0, -1);
+                string uplayId = bot._data.DiscordUplay[disId];
+                TrackerDataSnippet data = new TrackerDataSnippet(0, -1);
                 try
                 {
                     data = await TRNHttpProvider.GetData(uplayId);

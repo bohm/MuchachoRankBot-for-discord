@@ -1,22 +1,40 @@
 ﻿using System;
 
-namespace R6RankBot
+namespace RankBot
 {
     static class Settings
     {
         // ID of the guild (Discord server) that this instance operates on.
         // For the main use of this bot, this is the ID of Discord server R6 Siege a Chill, a CZ/SK Discord server.
-        public static ulong residenceID = 620608384227606528; 
-        // ID of DoctorOrson, the current maintainer of this bot on the server.
-        public static readonly ulong[] Operators = { 428263908281942038 };
+        public static ulong residenceID = 620608384227606528;
+
+        // ID of the guild where the channel with all internal data can be found.
+        // If the bot is to be run on multiple Discord servers (guild), this should be a server where you have owner privileges.
+        public static readonly ulong ControlGuild = 903649099541270528;
+        public const string PrimaryConfigurationChannel = "primary-configuration";
+        public static readonly string DataBackupChannel = "data-backups";
+        // If the primary configuration channel is empty, the following file is read instead.
+        public const string PrimaryConfigurationFile = @"primary.json";
+        public const string backupFile = @"rsixbot.json";
+
+        // Discord user IDs of all people that can run administrative commands through the bot.
+        public static readonly ulong[] Operators = { 428263908281942038, 213681987561586693 };
 
         public static readonly TimeSpan updatePeriod = TimeSpan.FromHours(3); // How often do we update the ranks.
         public static readonly TimeSpan lockTimeout = TimeSpan.FromSeconds(1); // How long do we wait for acquiring the lock.
 
         public const string botStatus = "Napiste !prikazy pro informace.";
 
-        public static readonly string[] BotChannels = { "rank-bot", "🦾rank-bot", "rank-bot-admin" }; // The only channels the bot is operating in.
-        public const string backupFile = @"rsixbot.json";
+
+        // The bot needs to find at least the guild configuration file or message somewhere.
+        // However, if you are running it for the first time, you may run it without a database of users.
+        // In that case, set this variable to true, add at least one user, then call !backup to create the
+        // data backup message, then set it back to false.
+        public static readonly bool BotFirstRun = false;  
+
+        public static readonly bool UsingExtensionMatchmaking = true;
+        public static readonly bool UsingExtensionRoleHighlights = true;
+        public static readonly bool UsingExtensionBanTracking = true;
 
         // Computes a colour based on the role type
         public static Discord.Color roleColor(string roleName)
