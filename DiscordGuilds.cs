@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
@@ -16,6 +17,7 @@ namespace RankBot
 
         public DiscordGuilds(BackupGuildConfiguration guildConfs, DiscordSocketClient sc)
         {
+            guildList = new List<DiscordGuild>();
             byName = new Dictionary<string, DiscordGuild>();
             byID = new Dictionary<ulong, DiscordGuild>();
             foreach (var gc in guildConfs.guildList)
@@ -34,13 +36,30 @@ namespace RankBot
     {
         public SocketGuild _socket; // mild TODO: make this private in the future.
         private List<string> _reports;
+        private readonly SemaphoreSlim _reports_lock;
         public SingleGuildConfig Config;
- 
+
+
         public DiscordGuild(SingleGuildConfig gc, DiscordSocketClient sc)
         {
+            _reports = new List<string>();
+            _reports_lock = new SemaphoreSlim(1, 1);
             Config = gc;
             _socket = sc.GetGuild(Config.id);
-            _reports = new List<string>();
+        }
+
+        public async Task RolePresenceCheckAsync()
+        {
+            bool roles_present = RoleCreation.CheckAllRoles(_socket);
+            if (roles_present)
+            {
+                Console.WriteLine($"All roles present in {_socket.Name}.");
+            }
+            else
+            {
+                Console.WriteLine($"Some roles missing in {_socket.Name}, creating them.");
+                await RoleCreation.CreateMissingRoles(_socket);
+            }
         }
 
         public string GetName()
@@ -88,24 +107,21 @@ namespace RankBot
         /// </summary>
         public void AddReport(string report)
         {
+            _reports_lock.Wait();
             _reports.Add(report);
+            _reports_lock.Release();
         }
 
         public async Task PublishReports()
         {
-            var ReportChannel = _socket.TextChannels.FirstOrDefault(x => (x.Name == Settings.ReportChannel));
-
-            if (ReportChannel == null)
-            {
-                return;
-            }
-
+            await _reports_lock.WaitAsync();
             foreach (var report in _reports)
             {
-                await ReportChannel.SendMessageAsync(report);
+                await Reply(report, Config.reportChannel);
             }
 
             _reports.Clear();
+            _reports_lock.Release();
         }
 
         public async Task RemoveAllRankRoles(ulong discordID)

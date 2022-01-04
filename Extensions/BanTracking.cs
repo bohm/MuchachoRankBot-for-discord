@@ -246,8 +246,26 @@ namespace RankBot.Extensions
             {
                 foreach ((ulong guildID, string report) in newlyBannedReports)
                 {
-                    _guilds.byID[guildID].AddReport(report);
+                    // A transitional correction.
+                    if (guildID == 0)
+                    {
+                        _guilds.byID[Settings.ControlGuild].AddReport(report);
+                    }
+                    else
+                    {
+                        if (!_guilds.byID.ContainsKey(guildID))
+                        {
+                            throw new GuildListException($"The guild with ID {guildID} is not currently being serviced.");
+                        }
+                        _guilds.byID[guildID].AddReport(report);
+                    }
                 }
+            }
+
+            // Post the reports.
+            foreach (DiscordGuild dg in _guilds.byID.Values)
+            {
+                await dg.PublishReports();
             }
             Console.WriteLine($"Performed {NumberOfQueries} queries from the last update structure task to the present.");
             NumberOfQueries = 0;

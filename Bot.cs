@@ -32,8 +32,8 @@ namespace RankBot
         public BotDataStructure _data;
 
         // The primary guild, used for backing up data as well as loading configuration data about other guilds.
-        private PrimaryDiscordGuild _primary;
-        // The other guilds (possibly including the primary one) where tracking and interfacing with users take place.
+        private PrimaryDiscordGuild _primary = null;
+        // The other guilds (possibly in cluding the primary one) where tracking and interfacing with users take place.
         // private List<DiscordGuild> _guildList;
         public DiscordGuilds guilds;
 
@@ -91,6 +91,17 @@ namespace RankBot
             if (constructionComplete)
             {
                 throw new PrimaryGuildException("Construction called twice, that is not allowed.");
+            }
+
+            Console.WriteLine("Restoring guild list configuration from message backup.");
+            BackupGuildConfiguration bgc = await RestoreGuildConfiguration();
+            guilds = new DiscordGuilds(bgc, client);
+
+            // We check for role creation here, instead of inside the constructor of DiscordGuild.
+            // We do this not to make the constructor async itself. It might be better to check there.
+            foreach (DiscordGuild g in guilds.byID.Values)
+            {
+                await g.RolePresenceCheckAsync();
             }
 
             Console.WriteLine("Populating data from the message backup.");
@@ -200,7 +211,7 @@ namespace RankBot
             // First, check that the primary guild is already loaded.
             if (!_primaryServerLoaded)
             {
-                throw new PrimaryGuildException("Primary guild (Discord server) did not load and yet RestoreGuildConfiguration() is called.");
+                throw new PrimaryGuildException("Primary guild (Discord server) did not load and yet RestoreDataStructures() is called.");
             }
 
             BackupData bd = null;
@@ -292,7 +303,7 @@ namespace RankBot
         public async Task UpdateRoles(ulong discordID, Rank newRank)
         {
             // Ignore everything until dwrap.ResidentGuild is set.
-            if (!roleInitComplete || !constructionComplete)
+            if (!constructionComplete)
             {
                 return;
             }
@@ -475,52 +486,7 @@ namespace RankBot
             botStatus = txt;
         }
 
-        public async Task RunBotAsync()
-        {
-            client = new DiscordSocketClient();
-            commands = new CommandService();
-            services = new ServiceCollection()
-                .AddSingleton(client)
-                .AddSingleton(commands)
-                .BuildServiceProvider();
-            client.Log += Log;
-            await RegisterCommandsAsync();
-            await client.LoginAsync(Discord.TokenType.Bot, Secret.botToken);
-            await client.StartAsync();
-            await client.SetGameAsync(get_botStatus());
-            // We wish to set the bot's resident Discord guild and initialize.
-            // This is however only possible when the client is ready.
-            // See https://docs.stillu.cc/guides/concepts/events.html for further documentation.
 
-            client.Ready += async () =>
-            {
-                if (!constructionComplete)
-                {
-                    await DelayedConstruction();
-                }
-                if (!roleInitComplete)
-                {
-                    _ = SyncRankRolesAndData();
-                }
-
-                return;
-            };
-
-            if (Settings.UsingExtensionRoleHighlights)
-            {
-                client.MessageReceived += _highlighter.Filter;
-            }
-
-            // Timer updateTimer = new Timer(new TimerCallback(UpdateAndBackup), null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(60));
-            Timer banTimer = new Timer(new TimerCallback(bt.UpdateStructure), null, TimeSpan.FromMinutes(2), TimeSpan.FromHours(12));
-            while (true)
-            {
-                // We do the big update also in a separate thread.
-                await Task.Delay(Settings.updatePeriod);
-                _ = UpdateAndBackup(null);
-            }
-            // await Task.Delay();
-        }
 
         public void TestMessage(Object stateInfo)
         {
@@ -541,26 +507,160 @@ namespace RankBot
         private async Task HandleCommandAsync(SocketMessage arg)
         {
             var message = arg as SocketUserMessage;
-            if (message is null || message.Author.IsBot) return;
-            if (!Settings.CommandChannels.Contains(message.Channel.Name)) return; // Ignore all channels except the allowed channel.
-            int argPos = 0;
-
-            if (message.HasStringPrefix("!", ref argPos) || message.HasMentionPrefix(client.CurrentUser, ref argPos))
+            if (message is null || message.Author.IsBot)
             {
-                var context = new SocketCommandContext(client, message);
-                var result = await commands.ExecuteAsync(context, argPos, services);
-                if (!result.IsSuccess)
-                    Console.WriteLine(result.ErrorReason);
+                return;
             }
-            await client.SetGameAsync(get_botStatus());
+
+            var contextChannel = arg.Channel;
+            if (contextChannel is SocketTextChannel guildChannel)
+            {
+                ulong gid = guildChannel.Guild.Id;
+                if (!guilds.byID.ContainsKey(gid))
+                {
+                    Console.WriteLine($"The service guilds do not contain the guild {gid}"); // DEBUG
+                    return;
+                }
+
+                if (!guilds.byID[gid].Config.commandChannels.Contains(message.Channel.Name))
+                {
+                    Console.WriteLine($"The message comes from a channel {message.Channel.Name}, which is not monitored."); // DEBUG
+                    return; // Ignore all channels except one the allowed command channels.
+                }
+
+                int argPos = 0;
+
+                if (message.HasStringPrefix("!", ref argPos) || message.HasMentionPrefix(client.CurrentUser, ref argPos))
+                {
+                    var context = new SocketCommandContext(client, message);
+                    var result = await commands.ExecuteAsync(context, argPos, services);
+                    if (!result.IsSuccess)
+                        Console.WriteLine(result.ErrorReason);
+                }
+            }
+            // await client.SetGameAsync(get_botStatus());
         }
 
+        /// <summary>
+        /// A pseudo unit test; should be decoupled into a full fledged test.
+        /// Connects to the primary guild, restores the structures, prints some basic info and terminates.
+        /// </summary>
+        /// <returns></returns>
+        public async Task TestBotAsync()
+        {
+            client = new DiscordSocketClient();
+            commands = new CommandService();
+            services = new ServiceCollection()
+                .AddSingleton(client)
+                .AddSingleton(commands)
+                .BuildServiceProvider();
+            client.Log += Log;
+            await RegisterCommandsAsync();
+            await client.LoginAsync(Discord.TokenType.Bot, Secret.botToken);
+            await client.StartAsync();
+            await client.SetGameAsync(get_botStatus());
+            // We wish to set the bot's resident Discord guild and initialize.
+            // This is however only possible when the client is ready.
+            // See https://docs.stillu.cc/guides/concepts/events.html for further documentation.
+
+            client.Ready += async () =>
+            {
+                if (_primary == null)
+                {
+                    _primary = new PrimaryDiscordGuild(client);
+                    _primaryServerLoaded = true;
+                }
+                if (!constructionComplete)
+                {
+                    await DelayedConstruction();
+                    if (Settings.UsingExtensionRoleHighlights)
+                    {
+                        client.MessageReceived += _highlighter.Filter;
+                    }
+                }
+                return;
+            };
+
+
+            while (true)
+            {
+                if (constructionComplete)
+                {
+                    Console.WriteLine("Server list:");
+                    int i = 0;
+                    foreach (DiscordGuild dg in guilds.byID.Values)
+                    {
+                        Console.WriteLine($"{i++}: {dg.GetName()}");
+                    }
+                }
+                await Task.Delay(Settings.updatePeriod);
+            }
+        }
+
+        public async Task RunBotAsync()
+        {
+            Timer banTimer = null;
+            client = new DiscordSocketClient();
+            commands = new CommandService();
+            services = new ServiceCollection()
+                .AddSingleton(client)
+                .AddSingleton(commands)
+                .BuildServiceProvider();
+            client.Log += Log;
+            await RegisterCommandsAsync();
+            await client.LoginAsync(Discord.TokenType.Bot, Secret.botToken);
+            await client.StartAsync();
+            await client.SetGameAsync(get_botStatus());
+            // We wish to set the bot's resident Discord guild and initialize.
+            // This is however only possible when the client is ready.
+            // See https://docs.stillu.cc/guides/concepts/events.html for further documentation.
+
+            client.Ready += async () =>
+            {
+                if (_primary == null)
+                {
+                    _primary = new PrimaryDiscordGuild(client);
+                    _primaryServerLoaded = true;
+                }
+                if (!constructionComplete)
+                {
+                    await DelayedConstruction();
+                    if (Settings.UsingExtensionRoleHighlights)
+                    {
+                        client.MessageReceived += _highlighter.Filter;
+                    }
+
+                    if (Settings.UsingExtensionBanTracking)
+                    {
+                        banTimer = new Timer(new TimerCallback(bt.UpdateStructure), null, TimeSpan.FromMinutes(2), TimeSpan.FromHours(12));
+                    }
+
+                }
+                if (!roleInitComplete)
+                {
+                    _ = SyncRankRolesAndData();
+                }
+
+                return;
+            };
+
+
+            // Timer updateTimer = new Timer(new TimerCallback(UpdateAndBackup), null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(60));
+            while (true)
+            {
+                // We do the big update also in a separate thread.
+                await Task.Delay(Settings.updatePeriod);
+                _ = UpdateAndBackup(null);
+            }
+            // await Task.Delay();
+        }
 
         static async Task Main(string[] args)
         {
 
             // TESTS
-            GuildConfigTest.Run();
+            // GuildConfigTest.Run();
+            // await new Bot().TestBotAsync();
 
             /*
             string tester;
@@ -618,14 +718,17 @@ namespace RankBot
             r = snippet.ToRank();
             Console.WriteLine(tester + "'s rank:" + r.FullPrint());
 
-             */ // END TESTS
-
-            /* StatsDB b = new StatsDB();
+            StatsDB b = new StatsDB();
             (bool DuoOrsonBanned, int OrsBanCode) = b.CheckUserBan("dd33228f-5c0a-4e56-a7c6-6dc87d8bb3da"); // DuoDoctorOrson
             (bool TeenagersBanned, int TeenBanCode) = b.CheckUserBan("71f7dd7b-fae0-4341-8788-c00085a7963d"); // Some teenagers guy, current ban: toxic behavior.
             (bool MartyBanned, int MartyBanCode) = b.CheckUserBan("6bc4610c-4ad4-4ee0-8173-284677e3140b"); // Marty.GLS
-            Console.WriteLine($"Orson {DuoOrsonBanned} with code {OrsBanCode}, teenagers {TeenagersBanned} with code {TeenBanCode}, Marty {MartyBanned} with code {MartyBanCode}"); */
-            // await new Bot().RunBotAsync();
+            Console.WriteLine($"Orson {DuoOrsonBanned} with code {OrsBanCode}, teenagers {TeenagersBanned} with code {TeenBanCode}, Marty {MartyBanned} with code {MartyBanCode}");
+
+            */ // END TESTS
+
+
+            // Full run:
+            await new Bot().RunBotAsync();
 
         }
     }

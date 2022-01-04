@@ -8,6 +8,66 @@ namespace RankBot
 {
     class RoleCreation
     {
+        public static bool CheckOneRole(Discord.WebSocket.SocketGuild guild, string roleName)
+        {
+            var sameNameRoles = guild.Roles.Where(x => x.Name == roleName);
+            if (sameNameRoles.Count() == 0)
+            {
+                Console.WriteLine($"Missing role: {roleName}.");
+                return false;
+            }
+
+            if (sameNameRoles.Count() > 2)
+            {
+                throw new GuildStructureException($"The guild {guild.Name} has role {roleName} twice or more. Please fix this outside of the bot.");
+            }
+
+            return true;
+        }
+
+        public static bool CheckAllRoles(Discord.WebSocket.SocketGuild guild)
+        {
+            bool allRolesPresent = true;
+
+            foreach (string roleName in Ranking.SpectralMetalRoles)
+            {
+                bool check = CheckOneRole(guild, roleName);
+                if (!check)
+                {
+                    allRolesPresent = false;
+                }
+            }
+
+            foreach (string roleName in Ranking.SpectralDigitRoles)
+            {
+                bool check = CheckOneRole(guild, roleName);
+                if (!check)
+                {
+                    allRolesPresent = false;
+                }
+            }
+
+            foreach (string roleName in Ranking.LoudMetalRoles)
+            {
+                bool check = CheckOneRole(guild, roleName);
+                if (!check)
+                {
+                    allRolesPresent = false;
+                }
+            }
+
+
+            foreach (string roleName in Ranking.LoudDigitRoles)
+            {
+                bool check = CheckOneRole(guild, roleName);
+                if (!check)
+                {
+                    allRolesPresent = false;
+                }
+            }
+
+            return allRolesPresent;
+        }
         /// <summary>
         /// Creates all the roles that the bot needs and which have not been created manually yet.
         /// </summary>

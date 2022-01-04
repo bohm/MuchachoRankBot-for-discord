@@ -15,18 +15,16 @@ namespace RankBot
         public static readonly string DataBackupChannel = "data-backups";
         // If the primary configuration channel is empty, the following file is read instead.
         public const string PrimaryConfigurationFile = @"primary.json";
+        public const string backupFile = @"rsixbot.json";
 
         // Discord user IDs of all people that can run administrative commands through the bot.
-        public static readonly ulong[] Operators = { 428263908281942038 };
+        public static readonly ulong[] Operators = { 428263908281942038, 213681987561586693 };
 
         public static readonly TimeSpan updatePeriod = TimeSpan.FromHours(3); // How often do we update the ranks.
         public static readonly TimeSpan lockTimeout = TimeSpan.FromSeconds(1); // How long do we wait for acquiring the lock.
 
         public const string botStatus = "Napiste !prikazy pro informace.";
 
-        public static readonly string ReportChannel = "🦾rank-bot"; // The channel where the bot sends any public reports.
-        public static readonly string[] CommandChannels = { "rank-bot", "🦾rank-bot", "rank-bot-admin" }; // The only channels the bot is operating in.
-        public const string backupFile = @"rsixbot.json";
 
         // The bot needs to find at least the guild configuration file or message somewhere.
         // However, if you are running it for the first time, you may run it without a database of users.
@@ -38,7 +36,6 @@ namespace RankBot
         public static readonly bool UsingExtensionRoleHighlights = true;
         public static readonly bool UsingExtensionBanTracking = true;
 
-        public static readonly string[] RoleHighlightChannels = { "🔍hledám-spoluhráče", "hledame-testing" };
         // Computes a colour based on the role type
         public static Discord.Color roleColor(string roleName)
         {

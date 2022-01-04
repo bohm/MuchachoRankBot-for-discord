@@ -15,7 +15,7 @@ namespace RankBot
     }
     class BackupGuildConfiguration
     {
-        public List<SingleGuildConfig> guildList;
+        public List<SingleGuildConfig> guildList = new List<SingleGuildConfig>();
 
         public static BackupGuildConfiguration RestoreFromFile(string fileName)
         {
@@ -75,9 +75,9 @@ namespace RankBot
 
             var controlCenter = new SingleGuildConfig();
             controlCenter.id = Settings.ControlGuild;
-            controlCenter.reportChannel = "report-testing";
-            controlCenter.roleHighlightChannels = new List<string> {"highlight-testing"};
-            controlCenter.commandChannels = new List<string> { "command-testing" };
+            controlCenter.reportChannel = "reports";
+            controlCenter.roleHighlightChannels = new List<string> {"looking-for-teammates"};
+            controlCenter.commandChannels = new List<string> { "rank-bot" };
 
             var chillServer = new SingleGuildConfig();
             chillServer.id = 620608384227606528;

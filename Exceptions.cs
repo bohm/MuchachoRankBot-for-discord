@@ -68,4 +68,23 @@ namespace RankBot
         {
         }
     }
+
+    public class GuildListException : Exception
+    {
+        public GuildListException()
+        {
+        }
+
+        public GuildListException(string message)
+            : base(message)
+        {
+        }
+
+        public GuildListException(string message, Exception inner)
+            : base(message, inner)
+        {
+        }
+    }
+
+
 }

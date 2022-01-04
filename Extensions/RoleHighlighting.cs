@@ -56,10 +56,25 @@ namespace RankBot.Extensions
                 return; // Ignore all bot messages and empty messages.
             }
 
-            // We need to figure out the guild of origin for the message. There might be a simple way of doing this.
-            SocketTextChannel contextChannel = (SocketTextChannel) message.Channel;
-            ulong sourceGuild = contextChannel.Guild.Id;
-            await individualHLs[sourceGuild].Filter(rawmsg);
+            var contextChannel = message.Channel;
+            if (contextChannel is SocketTextChannel guildChannel) // The message may be a DM, so we cast it to determine its type and work only with guild chat.
+            {
+                ulong sourceGuild = guildChannel.Guild.Id;
+                if (!individualHLs.ContainsKey(sourceGuild))
+                {
+                    return;
+                }
+
+                if(!individualHLs[sourceGuild].HighlightChannels().Contains(message.Channel.Name))
+                {
+                    return; // Ignore all channels except the allowed ones.
+                }
+                await individualHLs[sourceGuild].Filter(rawmsg);
+            }
+            else
+            {
+                return; // Ignore all DMs for filtering (role highlighting) purposes.
+            }
         }
     }
 
@@ -191,15 +206,14 @@ namespace RankBot.Extensions
             return ret;
         }
 
+        public List<string> HighlightChannels()
+        {
+            return _dg.Config.roleHighlightChannels;
+        }
+
         public async Task Filter(SocketMessage rawmsg)
         {
             SocketUserMessage message = rawmsg as SocketUserMessage;
-
-            if (!Settings.RoleHighlightChannels.Contains(message.Channel.Name))
-            {
-                return; // Ignore all channels except the allowed ones.
-            }
-
             List<string> roles = RolesToHighlight(rawmsg.Content);
 
             if (roles.Count == 0)
