@@ -518,13 +518,13 @@ namespace RankBot
                 ulong gid = guildChannel.Guild.Id;
                 if (!guilds.byID.ContainsKey(gid))
                 {
-                    Console.WriteLine($"The service guilds do not contain the guild {gid}"); // DEBUG
+                    // Console.WriteLine($"The service guilds do not contain the guild {gid}"); // DEBUG
                     return;
                 }
 
                 if (!guilds.byID[gid].Config.commandChannels.Contains(message.Channel.Name))
                 {
-                    Console.WriteLine($"The message comes from a channel {message.Channel.Name}, which is not monitored."); // DEBUG
+                    // Console.WriteLine($"The message comes from a channel {message.Channel.Name}, which is not monitored."); // DEBUG
                     return; // Ignore all channels except one the allowed command channels.
                 }
 

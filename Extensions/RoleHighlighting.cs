@@ -113,7 +113,7 @@ namespace RankBot.Extensions
                 SocketRole role = _dg._socket.Roles.FirstOrDefault(x => x.Name == name);
                 if (role == null)
                 {
-                    Console.WriteLine($"The role {name} has not been found in server {_dg.GetName()}. Populate the Discord server with roles before you start this extensions.");
+                    Console.WriteLine($"The role {name} has not been found in server {_dg.GetName()}. Populate the Discord server with roles before you start this extension.");
                     throw new Exception();
                 }
                 else
@@ -127,7 +127,7 @@ namespace RankBot.Extensions
                 SocketRole role = _dg._socket.Roles.FirstOrDefault(x => x.Name == name);
                 if (role == null)
                 {
-                    Console.WriteLine($"The role {name} has not been found in server {_dg.GetName()}. Populate the Discord server with roles before you start this extensions.");
+                    Console.WriteLine($"The role {name} has not been found in server {_dg.GetName()}. Populate the Discord server with roles before you start this extension.");
                     throw new Exception();
                 }
                 else
