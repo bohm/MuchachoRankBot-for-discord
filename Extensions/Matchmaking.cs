@@ -153,10 +153,11 @@ namespace RankBot.Extensions
                 string player = playerNames[i];
                 ulong disId = playerIDs[i];
                 string uplayId = bot._data.DiscordUplay[disId];
-                TrackerDataSnippet data = new TrackerDataSnippet(0, -1);
+
+                int mmr = -1;
                 try
                 {
-                    data = await TRNHttpProvider.GetData(uplayId);
+                    mmr = await TRNHttpProvider.GetCurrentMMR(uplayId);
                 }
                 catch (Exception)
                 {
@@ -164,19 +165,13 @@ namespace RankBot.Extensions
                     return;
                 }
 
-                if (data.rank < 0)
+                if (mmr < 0)
                 {
                     await channel.SendMessageAsync($"Error while fetching r6.tracker.network data for {player}.");
                     return;
                 }
 
-                if (data.rank == 0)
-                {
-                    await channel.SendMessageAsync($"Player {player} is Rankless. We treat him as 2500 MMR.");
-                    data.mmr = 2500;
-                }
-
-                playerMMR.Add((i, data.mmr));
+                playerMMR.Add((i, mmr));
             }
 
             // Compute the total MMR to quickly evaluate the complement of a team.

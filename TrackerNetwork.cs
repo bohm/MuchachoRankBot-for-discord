@@ -9,6 +9,7 @@ using System.Net.Http;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Linq;
+using System.Globalization;
 
 namespace RankBot
 {
@@ -192,6 +193,29 @@ namespace RankBot
             const string nicknameMatch = "<span class=\"trn-profile-header__name\">\n";
             string probableUplayName = FetchAfterMatch(websiteText, nicknameMatch, '\n');
             return probableUplayName;
+        }
+
+        public static async Task<int> GetCurrentMMR(string uplayId)
+        {
+            string url = "https://r6.tracker.network/profile/id/" + uplayId;
+            HttpClient website = new HttpClient();
+            var response = await website.GetAsync(url);
+            if (response == null || response.StatusCode != HttpStatusCode.OK)
+            {
+                throw new RankParsingException("The HTTP response did not return OK or was empty.");
+            }
+
+            string websiteText = await response.Content.ReadAsStringAsync();
+            const string currentMMRMatch = "<div style=\"font-family: Rajdhani; font-size: 3rem;\">";
+            string MMRString = FetchAfterMatch(websiteText, currentMMRMatch, '<');
+            if (int.TryParse(MMRString, NumberStyles.AllowThousands,
+                CultureInfo.InvariantCulture, out int MMRint))
+            {
+                return MMRint;
+            } else
+            {
+                throw new RankParsingException($"Could not parse the MMR from a string {MMRString} into an integer.");
+            }
         }
     }
 
