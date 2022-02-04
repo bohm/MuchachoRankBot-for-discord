@@ -14,6 +14,8 @@ using System.Collections.Generic;
 using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 
+using RankBot.Extensions;
+
 namespace RankBot
 {
     class Bot
@@ -725,7 +727,6 @@ namespace RankBot
             Console.WriteLine($"Orson {DuoOrsonBanned} with code {OrsBanCode}, teenagers {TeenagersBanned} with code {TeenBanCode}, Marty {MartyBanned} with code {MartyBanCode}");
 
             */ // END TESTS
-
 
             // Full run:
             await new Bot().RunBotAsync();

@@ -15,9 +15,9 @@ namespace RankBot.Commands
         [Command("matchmake")]
         public async Task Matchmake(params string[] users)
         {
-            if (users.Length != 10)
+            if (users.Length != 10 && users.Length != 20)
             {
-                await ReplyAsync($"The command needs exactly 10 user nicknames, you have provided {users.Length}. Use double quotes for nicknames with special characters, such as \"Pepa Novak\".");
+                await ReplyAsync($"The command needs exactly 10 or 20 user nicknames, you have provided {users.Length}. Use double quotes for nicknames with special characters, such as \"Pepa Novak\".");
             }
             else
             {
