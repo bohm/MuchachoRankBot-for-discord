@@ -5,7 +5,7 @@ using System.Text;
 
 namespace RankBot
 {
-    enum Metal: int
+    public enum Metal: int
     {
         Undefined = -2,
         Rankless = -1,
@@ -22,7 +22,7 @@ namespace RankBot
     /// A static class holding parameters of ranking, Discord roles corresponding to the ranks
     /// and converting metals.
     /// </summary>
-    class Ranking
+    public class Ranking
     {
 
         public static readonly Rank[] AllRanks =
@@ -268,7 +268,7 @@ namespace RankBot
         }
     }
 
-    class Rank
+    public class Rank
     {
         public Metal met;
         public int level = 0;

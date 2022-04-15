@@ -40,5 +40,47 @@ namespace RankBot
             }
             return true;
         }
+
+        /// <summary>
+        /// Builds a log message and posts it to the appropriate channel.
+        /// </summary>
+        /// <param name="g">Discord guild where the action occurred.</param>
+        /// <param name="user">A SocketUser which initiated the interaction.</param>
+        /// <param name="commandName">Name of the command being launched.</param>
+        /// <param name="details">Any other relevant details.</param>
+        /// <returns></returns>
+        protected async Task LogCommand(DiscordGuild g, Discord.WebSocket.SocketUser user, string commandName, string details = "")
+        {
+            if(!Settings.Logging)
+            {
+                return;
+            }
+
+            if(g.Config.loggingChannel == null)
+            {
+                return;
+            }
+
+            // Grab the logging channel.
+
+            Discord.WebSocket.SocketTextChannel logChan = g._socket.TextChannels.First(x => x.Name == g.Config.loggingChannel);
+
+            if (logChan == null)
+            {
+                return;
+            }
+
+            string logString = $"{DateTime.Now.ToString("s")}: {commandName} initiated by the user {user.Username} (ID: {user.Id})";
+
+            if (details.Length > 0)
+            {
+                logString += $". Full command: {details}.";
+            } else
+            {
+                logString += ".";
+            }
+
+            await logChan.SendMessageAsync(logString);
+        }
     }
 }

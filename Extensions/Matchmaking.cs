@@ -354,16 +354,16 @@ namespace RankBot.Extensions
             return sb.ToString();
         }
 
-        public async Task BuildTeams(Bot bot, ulong sourceGuild, Discord.WebSocket.ISocketMessageChannel channel, params string[] tenOrTwenty)
+        public async Task BuildTeams(Bot bot, ulong sourceGuild, Discord.WebSocket.ISocketMessageChannel channel, int groupSize, params string[] tenOrTwenty)
         {
             List<string> playerNames = new List<string>();
             List<ulong> playerIDs = new List<ulong>();
             List<(int, int)> playerMMR = new List<(int, int)>();
 
             // The command actually checks this first, but let's also check this for the sake of consistency.
-            if (tenOrTwenty.Length != 10 && tenOrTwenty.Length != 20)
+            if (tenOrTwenty.Length % groupSize != 0)
             {
-                await channel.SendMessageAsync("There is not 10 or 20 people, we cannot matchmake.");
+                await channel.SendMessageAsync("Group size is not divisible by list length.");
                 return;
             }
 
@@ -425,7 +425,7 @@ namespace RankBot.Extensions
             Evaluator maxMin = new Evaluator(playerMMR);
 
             // With MMRs loaded, we can finally do some balancing.
-            EqualPartitionBuilder eb = new EqualPartitionBuilder(5, players, maxMin);
+            EqualPartitionBuilder eb = new EqualPartitionBuilder(groupSize, players, maxMin);
             eb.Build();
 
             List<List<int>> bestPartitions = eb.StoredBest;

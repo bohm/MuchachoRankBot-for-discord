@@ -142,7 +142,16 @@ namespace RankBot.Extensions
                 // Do not return, we still hold the lock.
             } else
             {
-                (bool banned, int banType) = QueryBanTracker(uplayId);
+                bool banned = false;
+                int banType = 0;
+                try
+                {
+                    (banned, banType) = QueryBanTracker(uplayId);
+                }
+                catch (BanParsingException e)
+                {
+                    Console.WriteLine($"{String.Format("{0:r}", DateTime.Now)}: Encountered errors, cannot check the user for now.");
+                }
                 if (!bds.BanDict.ContainsKey(uplayId))
                 {
                     // Internal consistency failure.
@@ -223,7 +232,16 @@ namespace RankBot.Extensions
             {
                 if (!data.Banned)
                 {
-                    (bool newban, int newreason) = QueryBanTracker(uplayId);
+                    bool newban = false;
+                    int newreason = 0;
+                    try
+                    {
+                        (newban, newreason) = QueryBanTracker(uplayId);
+                    } catch (BanParsingException e)
+                    {
+                        Console.WriteLine($"{String.Format("{0:r}", DateTime.Now)}: Encountered errors, aborting updating the ban structure for now.");
+                        return;
+                    }
                     if (newban)
                     {
                         await BanTreeAccess.WaitAsync();

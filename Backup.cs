@@ -6,10 +6,11 @@ using System.Text;
 
 namespace RankBot
 {
-    class SingleGuildConfig
+    public class SingleGuildConfig
     {
         public ulong id;
         public string reportChannel;
+        public string loggingChannel; // Channel for logging data.
         public List<string> commandChannels;
         public List<string> roleHighlightChannels;
     }

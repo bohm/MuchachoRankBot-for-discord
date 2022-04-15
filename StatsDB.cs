@@ -86,7 +86,15 @@ namespace RankBot
             sw.Write(str);
             sw.Close();
 
-            StatsDBAPI.RootObject deserializedOutput = JsonConvert.DeserializeObject<StatsDBAPI.RootObject>(str);
+            StatsDBAPI.RootObject deserializedOutput = null;
+            try
+            {
+                deserializedOutput = JsonConvert.DeserializeObject<StatsDBAPI.RootObject>(str);
+            } catch (JsonReaderException e)
+            {
+                Console.WriteLine(e.Message);
+                Console.WriteLine($"String to be deserialized: {str}");
+            }
 
             if (deserializedOutput != null && deserializedOutput.Payload != null && deserializedOutput.Payload.System != null)
             {
@@ -106,7 +114,7 @@ namespace RankBot
                 }
             } else
             {
-                throw new RankParsingException();
+                throw new BanParsingException();
             }
 
             return (false, 0);

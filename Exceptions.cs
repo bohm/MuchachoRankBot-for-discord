@@ -85,6 +85,20 @@ namespace RankBot
         {
         }
     }
+    public class BanParsingException : Exception
+    {
+        public BanParsingException()
+        {
+        }
 
+        public BanParsingException(string message)
+            : base(message)
+        {
+        }
 
+        public BanParsingException(string message, Exception inner)
+            : base(message, inner)
+        {
+        }
+    }
 }

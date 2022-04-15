@@ -32,7 +32,7 @@ namespace RankBot
     }
 
 
-    class DiscordGuild
+    public class DiscordGuild
     {
         public SocketGuild _socket; // mild TODO: make this private in the future.
         private List<string> _reports;

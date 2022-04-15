@@ -26,6 +26,9 @@ namespace RankBot
         public const string botStatus = "Napiste !prikazy pro informace.";
 
 
+        // Enable or disable the logging mechanism.
+        public static readonly bool Logging = true;
+
         // The bot needs to find at least the guild configuration file or message somewhere.
         // However, if you are running it for the first time, you may run it without a database of users.
         // In that case, set this variable to true, add at least one user, then call !backup to create the

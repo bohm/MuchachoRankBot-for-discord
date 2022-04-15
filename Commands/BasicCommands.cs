@@ -35,6 +35,11 @@ namespace RankBot
             }
 
             var author = Context.Message.Author;
+
+            // Log command.
+            var sourceGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            await LogCommand(sourceGuild, author, "/ticho");
+
             await Bot.Instance.QuietenUserAndTakeRoles(author.Id);
             await ReplyAsync(author.Username + ": Odted nebudete notifikovani, kdyz nekdo oznaci vasi roli. Poslete prikaz !nahlas pro zapnuti notifikaci.");
         }
@@ -48,6 +53,11 @@ namespace RankBot
             }
             // Add the user to any mentionable rank roles.
             var author = Context.Message.Author;
+
+            // Log command.
+            var sourceGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            await LogCommand(sourceGuild, author, "/nahlas");
+
             await Bot.Instance.LoudenUserAndAddRoles(author.Id);
             await ReplyAsync(author.Username + ": Nyni budete notifikovani, kdyz nekdo zapne vasi roli.");
         }
@@ -60,15 +70,18 @@ namespace RankBot
                 return;
             }
 
-            var Author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
+            var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
+
+            var sourceGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            await LogCommand(sourceGuild, author, "/reset");
 
             foreach (DiscordGuild g in Bot.Instance.guilds.byID.Values)
             {
-                if (g.IsGuildMember(Author.Id))
+                if (g.IsGuildMember(author.Id))
                 {
-                    await g.RemoveAllRankRoles(Author.Id);
-                    await Bot.Instance._data.RemoveFromDatabases(Author.Id);
-                    await ReplyAsync(Author.Username + ": Smazali jsme o vas vsechny informace. Muzete se nechat znovu trackovat.");
+                    await g.RemoveAllRankRoles(author.Id);
+                    await Bot.Instance._data.RemoveFromDatabases(author.Id);
+                    await ReplyAsync(author.Username + ": Smazali jsme o vas vsechny informace. Muzete se nechat znovu trackovat.");
                 }
             }
         }
@@ -81,6 +94,11 @@ namespace RankBot
             }
 
             var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
+
+            // Log the command.
+            var sourceGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            await LogCommand(sourceGuild, author, "/track", $"/track {nick}");
+
             try
             {
                 string queryR6ID = await Bot.Instance._data.QueryMapping(author.Id);
@@ -142,6 +160,11 @@ namespace RankBot
             try
             {
                 var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
+
+                // Log the command.
+                var sourceGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+                await LogCommand(sourceGuild, author, "/update");
+
                 string authorR6TabId = await Bot.Instance._data.QueryMapping(author.Id);
 
                 if (authorR6TabId == null)
@@ -190,6 +213,10 @@ namespace RankBot
             var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
             string authorR6TabId = await Bot.Instance._data.QueryMapping(author.Id);
 
+            // Log the command.
+            var sourceGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            await LogCommand(sourceGuild, author, "/rank");
+
             if (authorR6TabId == null)
             {
                 await ReplyAsync(author.Username + ": vas rank netrackujeme, tak nemuzeme slouzit.");
@@ -227,6 +254,10 @@ namespace RankBot
             }
             var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
             DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+
+            // Log the command.
+            await LogCommand(contextGuild, author, "/uplay", $"/uplay {discordNick}");
+
             var target = contextGuild.GetSingleUser(discordNick);
             if (target == null)
             {
@@ -274,6 +305,10 @@ namespace RankBot
             var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
             DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
             var target = contextGuild.GetSingleUser(discordNick);
+
+            // Log the command.
+            await LogCommand(contextGuild, author, "/mmr", $"/mmr {discordNick}");
+
             if (target == null)
             {
                 await ReplyAsync(author.Username + ": Nenasli jsme cloveka ani podle prezdivky, ani podle Discord jmena.");
