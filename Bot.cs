@@ -659,8 +659,24 @@ namespace RankBot
 
         static async Task Main(string[] args)
         {
+            UbisoftApi uApi = new UbisoftApi();
+            await uApi.DelayedInit();
 
+            string ret = await uApi.QueryUplayId("DoctorOrson");
+            UbisoftRank r = await uApi.QuerySingleRank("93f4f20f-ac19-47fb-afe8-f36662a40b79");
+            Console.WriteLine(ret);
+            Console.WriteLine(r.ToRank().CompactFullPrint());
+
+            HashSet<string> severalIds = new HashSet<string> { "93f4f20f-ac19-47fb-afe8-f36662a40b79", "90520cd6-9fe2-4763-b250-b0333dd82158" };
+            UbisoftRankResponse severalResponses = await uApi.QueryMultipleRanks(severalIds);
+            foreach( (string uplayId, UbisoftRank rnk) in severalResponses.players)
+            {
+                Console.WriteLine($"{uplayId}: {rnk.ToRank().CompactFullPrint()}.");
+            }
             // TESTS
+
+            // Testing new API.
+
             // GuildConfigTest.Run();
             // await new Bot().TestBotAsync();
 
@@ -729,7 +745,7 @@ namespace RankBot
             */ // END TESTS
 
             // Full run:
-            await new Bot().RunBotAsync();
+            // await new Bot().RunBotAsync();
 
         }
     }
