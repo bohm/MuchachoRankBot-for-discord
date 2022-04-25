@@ -108,7 +108,7 @@ namespace RankBot
                     return;
                 }
 
-                string r6TabId = await TRNHttpProvider.GetID(nick);
+                string r6TabId = await Bot.Instance.uApi.GetID(nick);
 
                 if (r6TabId == null)
                 {
@@ -125,7 +125,7 @@ namespace RankBot
                 if (ret)
                 {
                     // Print user's rank too.
-                    Rank r = await TRNHttpProvider.GetCurrentRank(r6TabId);
+                    Rank r = await Bot.Instance.uApi.GetRank(r6TabId);
                     if (r.Digits())
                     {
                         await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + r.FullPrint());
@@ -179,7 +179,7 @@ namespace RankBot
                 {
                     await ReplyAsync(author.Username + ": Aktualizovali jsme vase MMR a rank. Nezapomente, ze to jde jen jednou za 30 minut.");
                     // Print user's rank too.
-                    Rank r = await TRNHttpProvider.GetCurrentRank(authorR6TabId);
+                    Rank r = await Bot.Instance.uApi.GetRank(authorR6TabId);
                     if (r.Digits())
                     {
                         await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + r.FullPrint());
@@ -227,7 +227,7 @@ namespace RankBot
                 try
                 {
 
-                    Rank r = await TRNHttpProvider.GetCurrentRank(authorR6TabId);
+                    Rank r = await Bot.Instance.uApi.GetRank(authorR6TabId);
                     if (r.Digits())
                     {
                         await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + r.FullPrint());
@@ -273,7 +273,7 @@ namespace RankBot
                 string uplayName = "";
                 try
                 {
-                    uplayName = await TRNHttpProvider.GetCurrentUplay(uplayId);
+                    uplayName = await Bot.Instance.uApi.GetUplayName(uplayId);
                     if (uplayName == null || uplayName.Length == 0)
                     {
                         throw new RankParsingException("Returned uplayName is empty.");
@@ -321,7 +321,7 @@ namespace RankBot
                 int mmr = -1;
                 try
                 {
-                    mmr = await TRNHttpProvider.GetCurrentMMR(uplayId);
+                    mmr = await Bot.Instance.uApi.GetMMR(uplayId);
                     if (mmr < 0)
                     {
                         throw new RankParsingException("Returned MMR is less than 0, that is almost surely wrong.");

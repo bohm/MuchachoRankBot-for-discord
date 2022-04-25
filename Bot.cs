@@ -31,6 +31,7 @@ namespace RankBot
         private bool _primaryServerLoaded = false;
         private string botStatus = Settings.botStatus;
 
+        public UbisoftApi uApi;
         public BotDataStructure _data;
 
         // The primary guild, used for backing up data as well as loading configuration data about other guilds.
@@ -261,7 +262,7 @@ namespace RankBot
                     return;
                 }
 
-                string r6TabId = await TRNHttpProvider.GetID(uplayNickname);
+                string r6TabId = await uApi.GetID(uplayNickname);
 
                 if (r6TabId == null)
                 {
@@ -278,7 +279,7 @@ namespace RankBot
                 if (ret)
                 {
                     // Print user's rank too.
-                    Rank r = await TRNHttpProvider.GetCurrentRank(r6TabId);
+                    Rank r = await uApi.GetRank(r6TabId);
                     if (r.Digits())
                     {
                         await g.ReplyToUser($"Aktualne vidime vas rank jako {r.FullPrint()}", relevantChannelName, discordID);
@@ -325,8 +326,8 @@ namespace RankBot
         {
             try
             {
-                TrackerDataSnippet data = await TRNHttpProvider.UpdateAndGetData(r6TabID);
-                Rank fetchedRank = data.ToRank();
+
+                Rank fetchedRank = await uApi.GetRank(r6TabID);
 
                 bool updateRequired = true;
                 if (await _data.TrackingContains(discordID))
@@ -452,6 +453,7 @@ namespace RankBot
             {
                 await RefreshRank(entry.Key, entry.Value);
                 count++;
+                Thread.Sleep(1000); // Added not to overwhelm the API. Possibly change to a batched request system.
                 // TODO: Possibly erase from the DB if the user IS null.
             }
             System.Console.WriteLine("Checked or updated " + count + " users.");
@@ -601,6 +603,10 @@ namespace RankBot
 
         public async Task RunBotAsync()
         {
+
+            uApi = new UbisoftApi();
+            await uApi.DelayedInit();
+
             Timer banTimer = null;
             client = new DiscordSocketClient();
             commands = new CommandService();
@@ -659,93 +665,34 @@ namespace RankBot
 
         static async Task Main(string[] args)
         {
-            UbisoftApi uApi = new UbisoftApi();
-            await uApi.DelayedInit();
-
-            string ret = await uApi.QueryUplayId("DoctorOrson");
-            UbisoftRank r = await uApi.QuerySingleRank("93f4f20f-ac19-47fb-afe8-f36662a40b79");
-            Console.WriteLine(ret);
-            Console.WriteLine(r.ToRank().CompactFullPrint());
-
-            HashSet<string> severalIds = new HashSet<string> { "93f4f20f-ac19-47fb-afe8-f36662a40b79", "90520cd6-9fe2-4763-b250-b0333dd82158" };
-            UbisoftRankResponse severalResponses = await uApi.QueryMultipleRanks(severalIds);
-            foreach( (string uplayId, UbisoftRank rnk) in severalResponses.players)
-            {
-                Console.WriteLine($"{uplayId}: {rnk.ToRank().CompactFullPrint()}.");
-            }
             // TESTS
 
             // Testing new API.
 
+            //UbisoftApi uApi = new UbisoftApi();
+            //await uApi.DelayedInit();
+
+            //string orsonUplay = "93f4f20f-ac19-47fb-afe8-f36662a40b79";
+            //string orsonNickname = await uApi.GetCurrentUplay(orsonUplay);
+            //Console.WriteLine($"The current Uplay nickname of {orsonUplay} is {orsonNickname}. ");
+            //int orsonMmr = await uApi.GetCurrentMMR(orsonUplay);
+            //Console.WriteLine($"The current MMR of {orsonNickname} is {orsonMmr}. ");
+
+            //HashSet<string> severalIds = new HashSet<string> { "93f4f20f-ac19-47fb-afe8-f36662a40b79", "90520cd6-9fe2-4763-b250-b0333dd82158" };
+            //UbisoftRankResponse severalResponses = await uApi.QueryMultipleRanks(severalIds);
+            //foreach( (string uplayId, UbisoftRank rnk) in severalResponses.players)
+            //{
+            //    Console.WriteLine($"{uplayId}: {rnk.ToRank().CompactFullPrint()}.");
+            //}
+
+
             // GuildConfigTest.Run();
             // await new Bot().TestBotAsync();
 
-            /*
-            string tester;
-            R6TabDataSnippet snippet;
-            string TRNID;
-            Rank r;
-
-            // Test TRN 0
-            tester = "NotOrsonWelles";
-            TRNID = await TRNHttpProvider.GetID(tester);
-            Console.WriteLine(tester + "'s ID:" + TRNID);
-            snippet = await TRNHttpProvider.GetData(TRNID);
-            r = snippet.ToRank();
-            Console.WriteLine(tester + "'s rank:" + r.FullPrint());
-
-            // Test TRN 1
-            string tester1 = "Lopata_6";
-            string TRNID1 = await TRNHttpProvider.GetID(tester1);
-            Console.WriteLine(tester1 + "'s ID:" + TRNID1);
-            snippet = await TRNHttpProvider.GetData(TRNID1);
-            r = snippet.ToRank();
-            Console.WriteLine(tester1 + "'s rank:" + r.FullPrint());
-
-            // Console.WriteLine(tester + "'s ID:" + testerID);
-            // R6TabDataSnippet snippet = await R6Tab.GetData(testerID);
-            // Rank r = snippet.ToRank();
-            // Console.WriteLine(tester + "'s rank:" + r.FullPrint());
-            // Test 2
-
-            // List<string> darthList = new List<string> {"@everyone", "G", "Raptoil", "Stamgast", "Gold 2", "Gold", "G2" };
-            // Rank guessDarth = Ranking.GuessRank(darthList);
-            // if (!guessDarth.Equals(new Rank(Metal.Gold, 2)))
-            // {
-            //     Console.WriteLine("Sanity check failed. Darth's guess is" + guessDarth.FullPrint());
-            //     throw new Exception();
-            // }
-
-            // Test TRN
-            // string tester2 = "NotOrsonWelles";
-            string TRNID2 = "dd33228f-5c0a-4e56-a7c6-6dc87d8bb3da";
-            snippet = await TRNHttpProvider.GetData(TRNID2);
-
-
-            // Test TRN Rankless (currently)
-            Console.WriteLine("Test rankless:");
-            // string tester3 = "Superzrout";
-            string TRNID3 = "90520cd6-9fe2-4763-b250-b0333dd82158";
-            snippet = await TRNHttpProvider.GetData(TRNID3);
-
-
-            tester = "DandoStarris";
-            TRNID = await TRNHttpProvider.GetID(tester);
-            Console.WriteLine(tester + "'s ID:" + TRNID);
-            snippet = await TRNHttpProvider.GetData(TRNID);
-            r = snippet.ToRank();
-            Console.WriteLine(tester + "'s rank:" + r.FullPrint());
-
-            StatsDB b = new StatsDB();
-            (bool DuoOrsonBanned, int OrsBanCode) = b.CheckUserBan("dd33228f-5c0a-4e56-a7c6-6dc87d8bb3da"); // DuoDoctorOrson
-            (bool TeenagersBanned, int TeenBanCode) = b.CheckUserBan("71f7dd7b-fae0-4341-8788-c00085a7963d"); // Some teenagers guy, current ban: toxic behavior.
-            (bool MartyBanned, int MartyBanCode) = b.CheckUserBan("6bc4610c-4ad4-4ee0-8173-284677e3140b"); // Marty.GLS
-            Console.WriteLine($"Orson {DuoOrsonBanned} with code {OrsBanCode}, teenagers {TeenagersBanned} with code {TeenBanCode}, Marty {MartyBanned} with code {MartyBanCode}");
-
-            */ // END TESTS
+            // END TESTS
 
             // Full run:
-            // await new Bot().RunBotAsync();
+            await new Bot().RunBotAsync();
 
         }
     }

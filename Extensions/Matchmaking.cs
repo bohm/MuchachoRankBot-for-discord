@@ -405,7 +405,7 @@ namespace RankBot.Extensions
                 int mmr = -1;
                 try
                 {
-                    mmr = await TRNHttpProvider.GetCurrentMMR(uplayId);
+                    mmr = await Bot.Instance.uApi.GetMMR(uplayId);
                 }
                 catch (Exception)
                 {
@@ -420,6 +420,7 @@ namespace RankBot.Extensions
                 }
 
                 playerMMR.Add((i, mmr));
+                Thread.Sleep(1000); // Added not to overwhelm with the API queries.
             }
 
             Evaluator maxMin = new Evaluator(playerMMR);

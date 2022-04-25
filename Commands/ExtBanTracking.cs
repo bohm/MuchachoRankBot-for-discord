@@ -20,7 +20,7 @@ namespace RankBot.Commands
             string uplayId;
             try
             {
-                uplayId = await TRNHttpProvider.GetID(uplayNick);
+                uplayId = await Bot.Instance.uApi.GetID(uplayNick);
                 if (uplayId == null)
                 {
                     await ReplyAsync(Context.Message.Author.Username + ": Nepodarilo se nam najit podezrely Uplay ucet. / We failed to find the suspicious Uplay account.");

@@ -25,7 +25,7 @@ namespace RankBot
         {
             if (wins + losses >= 10)
             {
-                return Ranking.MMRToRank((int) mmr);
+                return Ranking.MMRToRank((int)mmr);
             }
             else
             {
@@ -74,7 +74,25 @@ namespace RankBot
 
         public async Task DelayedInit()
         {
+            await ReAuth();
+        }
+
+        public async Task ReAuth()
+        {
+            // Remark: Since we are running this in a separate thread, a locking for the token API might be needed.
+            // On the other hand, the string "_token.ticket" should be valid at all times, as we reauthorize
+            // one minute before expiration. As long as only queries to "_token.ticket" are made, locking is not required.
+
             _token = await LogIn();
+            DateTime expiration = DateTime.Parse(_token.expiration);
+            TimeSpan untilReauth = expiration - DateTime.Now;
+            untilReauth -= TimeSpan.FromSeconds(60);
+            if (untilReauth.Minutes < 0 || untilReauth.Minutes > 60)
+            {
+                throw new Exception("Reauth time computation failed.");
+            }  
+            Console.WriteLine($"Logged in to the Ubisoft API. We will reauth in {untilReauth.Minutes} minutes.");
+            Timer reAuthTimer = new Timer(async x => { await this.ReAuth(); }, null, untilReauth, Timeout.InfiniteTimeSpan);
         }
 
         public async Task<UbisoftAuth> LogIn()
@@ -92,11 +110,11 @@ namespace RankBot
             JsonTextReader reader = new JsonTextReader(new StringReader(responseString));
             JsonSerializer serializer = new JsonSerializer();
             UbisoftAuth token = serializer.Deserialize<UbisoftAuth>(reader);
-            
+
             return token;
         }
 
-        public async Task<string> QueryUplayId(string uplayNickname)
+        public async Task<UbisoftUserResponse> QueryUserByNickname(string uplayNickname)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, "https://public-ubiservices.ubi.com/v2/profiles?platformType=uplay&nameOnPlatform=" + uplayNickname);
             request.Headers.TryAddWithoutValidation("Authorization", "Ubi_v1 t=" + _token.ticket);
@@ -110,13 +128,38 @@ namespace RankBot
                 throw new RankParsingException($"The response for querying the user is {response.StatusCode}, not OK.");
             }
             var responseString = await response.Content.ReadAsStringAsync();
+            UbisoftUserResponse responseObject = JsonConvert.DeserializeObject<UbisoftUserResponse>(responseString);
 
-            if (responseString != null)
+
+            if (responseObject == null)
             {
-                throw new RankParsingException("The response string is malformed.");
+                throw new RankParsingException("The response object was not converted correctly.");
             }
-            return responseString;
+            return responseObject;
+        }
 
+        public async Task<UbisoftUserResponse> QueryUserByUplayId(string uplayId)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "https://public-ubiservices.ubi.com/v2/profiles?platformType=uplay&userId=" + uplayId);
+            request.Headers.TryAddWithoutValidation("Authorization", "Ubi_v1 t=" + _token.ticket);
+            request.Headers.TryAddWithoutValidation("Ubi-AppId", "39baebad-39e5-4552-8c25-2c9b919064e2");
+            request.Content = new StringContent("", Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.SendAsync(request);
+
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                throw new RankParsingException($"The response for querying the user is {response.StatusCode}, not OK.");
+            }
+            var responseString = await response.Content.ReadAsStringAsync();
+            UbisoftUserResponse responseObject = JsonConvert.DeserializeObject<UbisoftUserResponse>(responseString);
+
+
+            if (responseObject == null)
+            {
+                throw new RankParsingException("The response object was not converted correctly.");
+            }
+            return responseObject;
         }
 
         public async Task<UbisoftRankResponse> QueryMultipleRanks(HashSet<string> uplayIds)
@@ -128,7 +171,7 @@ namespace RankBot
             bool first = true;
             foreach (string uplayId in uplayIds)
             {
-                if(!first)
+                if (!first)
                 {
                     sb.Append(",");
                 }
@@ -180,184 +223,52 @@ namespace RankBot
         }
 
 
-            
+        // Transition functions. We can get rid of those later, if useful.
 
-    public static string FetchAfterMatch(string data, string needle, int length)
+        public async Task<string> GetID(string uplayNick)
         {
-            int position = data.IndexOf(needle);
-            if (position <= 0) // TODO: the span tag may not exist on low-level accounts, so handle that more gracefully.
+            UbisoftUserResponse response = await QueryUserByNickname(uplayNick);
+            if (response.profiles == null)
             {
-                return "";
+                throw new RankParsingException("The response is malformed for some reason.");
+            }
+            if (response.profiles.Count != 1)
+            {
+                throw new RankParsingException("The number of profiles is larger than one, so we cannot continue.");
             }
 
-            string resultString = data.Substring(position + needle.Length, length);
-            return resultString;
+            UbisoftUser curUser = response.profiles.First();
+            return curUser.userId;
         }
 
-        public static string FetchAfterMatch(string data, string needle, char delimeter)
+        public async Task<Rank> GetRank(string uplayId)
         {
-            int position = data.IndexOf(needle);
-            if (position <= 0) // TODO:     the span tag may not exist on low-level accounts, so handle that more gracefully.
-            {
-                return "";
-            }
-
-            string resultPrefix = data.Substring(position + needle.Length);
-            int delimeterPosition = resultPrefix.IndexOf(delimeter);
-            if (delimeterPosition <= 0)
-            {
-                return "";
-            }
-
-            return resultPrefix.Substring(0, delimeterPosition);
+            UbisoftRank ubiRank = await QuerySingleRank(uplayId);
+            return ubiRank.ToRank();
         }
 
-        public static async Task<TrackerDataSnippet> GetData(string TRNId)
+        public async Task<int> GetMMR(string uplayId)
         {
-            string url = "https://r6.tracker.network/profile/id/" + TRNId;
-            HttpClient website = new HttpClient();
-            var response = await website.GetAsync(url);
-            if (response == null || response.StatusCode != HttpStatusCode.OK)
-            {
-                throw new RankParsingException("The HTTP response did not return OK or was empty.");
-            }
-            string websiteText = await response.Content.ReadAsStringAsync();
-
-            // Check if user exists by matching some tag that is always present for all existing accounts.
-
-            const string userSiteMatch = "<trn-profile-header-favorite platform=\"4\" ";
-            const string followUp = "nickname";
-            string checkMatch = FetchAfterMatch(websiteText, userSiteMatch, 8);
-            if (!followUp.Equals(checkMatch))
-            {
-                throw new RankParsingException("The returned page does not seem to be a user page");
-            }
-
-            //const string matchingString = "<span class=\"trn-text--dimmed\">Skill </span>\n<span>\n";
-            const string matchingString = "<div style=\"font-family: Rajdhani; font-size: 3rem;\">";
-            string MMRstring = FetchAfterMatch(websiteText, matchingString, '<');
-
-            if (MMRstring.Length == 0)
-            {
-                // Return the user as rankless, possibly did not play any ranked games yet.
-                return new TrackerDataSnippet(0, 0);
-            }
-
-            // Console.WriteLine("Found the string: \"" + MMRstring + "\"");
-            int mmr;
-            // int.Parse(MMRstring); // I prefer the correct parsing.
-            // bool success = int.TryParse(MMRstring, out floatMMR); // I said the correct parsing.
-            bool success = int.TryParse(MMRstring, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out mmr); // Perfection.
-
-            if (!success)
-            {
-                throw new RankParsingException("Parsing MMR to float failed.");
-            }
-
-            // Locate whether the tracker thinks the user has a rank (had >= 10 matches).
-
-            const string matchingRankName = "<div class=\"trn-text--dimmed\" style=\"font-size: 1.5rem;\">";
-            // const string matchingRankName = "<div class=\"trn-defstat mb0\">\n<div class=\"trn-defstat__name\">Rank</div>\n<div class=\"trn-defstat__value\">\n";
-            const string ranklessResponse = "No Rank";
-            string rankString = FetchAfterMatch(websiteText, matchingRankName, '<');
-
-            // Console.WriteLine("Found the rank string: \"" + rankString + "\"");
-
-            int rank = 1;
-            if (ranklessResponse.Equals(rankString) || rankString.Length == 0)
-            {
-                rank = 0;
-                // Console.WriteLine("This user is rankless.");
-            }
-            else
-            {
-                // Console.WriteLine("This user has a rank.");
-            }
-
-            return new TrackerDataSnippet(mmr, rank); // TODO: fix.
+            UbisoftRank ubiRank = await QuerySingleRank(uplayId);
+            int mmr = (int)ubiRank.mmr;
+            return mmr;
         }
 
-        /// <summary>
-        /// This function also asks for a data refresh, if the provider has that option. Needs to be called sparingly.
-        /// TRN has no possibility of updating, so we just call get data.
-        /// </summary>
-        /// <param name="r6TabId"></param>
-        /// <returns></returns>
-        public static async Task<TrackerDataSnippet> UpdateAndGetData(string TRNID)
+        public async Task<string> GetUplayName(string uplayId)
         {
-            return await GetData(TRNID);
-        }
-
-
-        public static async Task<string> GetID(string UplayNick)
-        {
-            string url = "https://r6.tracker.network/profile/pc/" + UplayNick;
-            HttpClient website = new HttpClient();
-            var response = await website.GetAsync(url);
-            if (response == null || response.StatusCode != HttpStatusCode.OK)
+            UbisoftUserResponse response = await QueryUserByUplayId(uplayId);
+            if (response.profiles == null)
             {
-                throw new RankParsingException("The HTTP response did not return OK or was empty.");
+                throw new RankParsingException("The response is malformed for some reason.");
+            }
+            if (response.profiles.Count != 1)
+            {
+                throw new RankParsingException("The number of profiles is larger than one, so we cannot continue.");
             }
 
-            string websiteText = await response.Content.ReadAsStringAsync();
-            const string IDMatch = "<a class=\"trn-button trn-button--primary mt24\" target=\"_blank\" href=\"https://r6.tracker.network/profile/id/";
-            string probableID = FetchAfterMatch(websiteText, IDMatch, '\"');
-
-            // Console.WriteLine("It seems the ID of " + UplayNick + " is " + probableID);
-            return probableID;
-
+            UbisoftUser curUser = response.profiles.First();
+            return curUser.nameOnPlatform;
         }
 
-        public static async Task<Rank> GetCurrentRank(string UplayID)
-        {
-            TrackerDataSnippet data = await UbisoftApi.GetData(UplayID);
-            Rank r = data.ToRank();
-            return r;
-        }
-
-        /// <summary>
-        /// Queries the tracker to return the current nickname, given the uplay unique ID. An inverse of GetID().
-        /// </summary>
-        /// <param name="uplayId"></param>
-        /// <returns></returns>
-        public static async Task<string> GetCurrentUplay(string uplayId)
-        {
-            string url = "https://r6.tracker.network/profile/id/" + uplayId;
-            HttpClient website = new HttpClient();
-            var response = await website.GetAsync(url);
-            if (response == null || response.StatusCode != HttpStatusCode.OK)
-            {
-                throw new RankParsingException("The HTTP response did not return OK or was empty.");
-            }
-
-            string websiteText = await response.Content.ReadAsStringAsync();
-            const string nicknameMatch = "<span class=\"trn-profile-header__name\">\n";
-            string probableUplayName = FetchAfterMatch(websiteText, nicknameMatch, '\n');
-            return probableUplayName;
-        }
-
-        public static async Task<int> GetCurrentMMR(string uplayId)
-        {
-            string url = "https://r6.tracker.network/profile/id/" + uplayId;
-            HttpClient website = new HttpClient();
-            var response = await website.GetAsync(url);
-            if (response == null || response.StatusCode != HttpStatusCode.OK)
-            {
-                throw new RankParsingException("The HTTP response did not return OK or was empty.");
-            }
-
-            string websiteText = await response.Content.ReadAsStringAsync();
-            const string currentMMRMatch = "<div style=\"font-family: Rajdhani; font-size: 3rem;\">";
-            string MMRString = FetchAfterMatch(websiteText, currentMMRMatch, '<');
-            if (int.TryParse(MMRString, NumberStyles.AllowThousands,
-                CultureInfo.InvariantCulture, out int MMRint))
-            {
-                return MMRint;
-            }
-            else
-            {
-                throw new RankParsingException($"Could not parse the MMR from a string {MMRString} into an integer.");
-            }
-        }
     }
 }
