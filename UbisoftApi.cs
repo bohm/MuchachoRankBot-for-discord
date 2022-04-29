@@ -68,6 +68,7 @@ namespace RankBot
     {
         private readonly HttpClient _httpClient = new HttpClient();
         private UbisoftAuth _token;
+        private Timer _reAuthTimer;
         public UbisoftApi()
         {
         }
@@ -87,12 +88,12 @@ namespace RankBot
             DateTime expiration = DateTime.Parse(_token.expiration);
             TimeSpan untilReauth = expiration - DateTime.Now;
             untilReauth -= TimeSpan.FromSeconds(60);
-            if (untilReauth.Minutes < 0 || untilReauth.Minutes > 60)
+            if (untilReauth.TotalMinutes < 0 || untilReauth.TotalMinutes > 300)
             {
-                throw new Exception("Reauth time computation failed.");
+                throw new Exception("Reauth time computation is outside the expected bounds.");
             }  
-            Console.WriteLine($"Logged in to the Ubisoft API. We will reauth in {untilReauth.Minutes} minutes.");
-            Timer reAuthTimer = new Timer(async x => { await this.ReAuth(); }, null, untilReauth, Timeout.InfiniteTimeSpan);
+            Console.WriteLine($"Logged in to the Ubisoft API. We will reauth in {untilReauth.TotalMinutes} minutes.");
+            _reAuthTimer = new Timer(async x => { await this.ReAuth(); }, null, untilReauth, Timeout.InfiniteTimeSpan);
         }
 
         public async Task<UbisoftAuth> LogIn()
