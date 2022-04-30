@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    internal class Backup : CommonBase
+    public class Backup : CommonBase
     {
         [Command("backup")]
         public async Task BackupCommand()

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    internal class UplayName : CommonBase
+    public class UplayName : CommonBase
     {
 
         [Command("uplay")]

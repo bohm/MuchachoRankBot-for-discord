@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    internal class UpdateAll : CommonBase
+    public class UpdateAll : CommonBase
     {
         [Command("updateall")]
         public async Task UpdateAllCommand()

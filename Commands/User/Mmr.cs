@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    internal class Mmr : CommonBase
+    public class Mmr : CommonBase
     {
         [Command("mmr")]
         public async Task MmrCommandAsync(string discordNick)

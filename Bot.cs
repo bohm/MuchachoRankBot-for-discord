@@ -606,9 +606,14 @@ namespace RankBot
 
             uApi = new UbisoftApi();
             await uApi.DelayedInit();
-
             Timer banTimer = null;
-            client = new DiscordSocketClient();
+
+            var config = new DiscordSocketConfig();
+            config.GatewayIntents = GatewayIntents.All;
+
+            client = new DiscordSocketClient(config);
+
+            // client = new DiscordSocketClient();
             commands = new CommandService();
             services = new ServiceCollection()
                 .AddSingleton(client)

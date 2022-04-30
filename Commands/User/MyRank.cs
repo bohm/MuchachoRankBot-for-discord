@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    internal class MyRank : CommonBase
+    public class MyRank : CommonBase
     {
         [Command("rank")]
         public async Task Rank()

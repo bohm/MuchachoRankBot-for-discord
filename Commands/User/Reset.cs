@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    internal class Reset : CommonBase
+    public class Reset : CommonBase
     {
         [Command("reset")]
         public async Task ResetCommandAsync()

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    internal class Quieten : CommonBase
+    public class Quieten : CommonBase
     {
         [Command("ticho")]
         public async Task QuietenCommandAsync()

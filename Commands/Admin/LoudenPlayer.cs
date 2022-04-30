@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    internal class LoudenPlayer : CommonBase
+    public class LoudenPlayer : CommonBase
     {
         [Command("loudenplayer")]
         public async Task LoudenPlayerCommand(string discordUsername)

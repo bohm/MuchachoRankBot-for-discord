@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    internal class Populate : CommonBase
+    public class Populate : CommonBase
     {
         [Command("populate")]
         public async Task PopulateCommand()

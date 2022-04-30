@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    internal class Track : CommonBase
+    public class Track : CommonBase
     {
         [Command("track")]
         public async Task TrackCommandAsync(string nick)

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    internal class Louden : CommonBase
+    public class Louden : CommonBase
     {
         [Command("nahlas")]
         public async Task LoudenCommandAsync()

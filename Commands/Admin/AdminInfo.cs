@@ -25,4 +25,3 @@ namespace RankBot.Commands.Admin
         }
     }
 }
-

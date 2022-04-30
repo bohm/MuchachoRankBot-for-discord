@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    internal class ResetUser : CommonBase
+    public class ResetUser : CommonBase
     {
         [Command("resetuser")]
         public async Task ResetUserCommand(string discordUsername)

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    internal class ShushPlayer : CommonBase
+    public class ShushPlayer : CommonBase
     {
         [Command("shushplayer")]
         public async Task ShushPlayerCommand(string discordUsername)

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    internal class TrackPlayer : CommonBase
+    public class TrackPlayer : CommonBase
     {
         [Command("trackplayer")]
         public async Task TrackPlayerCommand(string discordUsername, string nick)

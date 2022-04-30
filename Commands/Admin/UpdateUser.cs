@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    internal class UpdateUser : CommonBase
+    public class UpdateUser : CommonBase
     {
         // --- Admin commands. ---
 
