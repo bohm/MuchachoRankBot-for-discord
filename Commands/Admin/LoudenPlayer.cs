@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    public class LoudenPlayer : CommonBase
+    public class LoudenPlayer : AdminCommonBase
     {
+        public static readonly string Name = "!loudenplayer discordUsername";
+        public static readonly string Description = "Adds tagging roles to a Discord user.";
         [Command("loudenplayer")]
         public async Task LoudenPlayerCommand(string discordUsername)
         {

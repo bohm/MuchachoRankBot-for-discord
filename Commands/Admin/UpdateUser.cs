@@ -6,12 +6,13 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    public class UpdateUser : CommonBase
+    public class UpdateUser : AdminCommonBase
     {
-        // --- Admin commands. ---
+        public static readonly string Name = "!updateuser discordUsername";
+        public static readonly string Description = "Updates the rank of a specific user. Equivalent to !update.";
 
         [Command("updateuser")]
-        public async Task UpdateUserCommand(string discordUsername)
+        public async Task UpdateUserCommandAsync(string discordUsername)
         {
             if (!(await InstanceCheck() && await OperatorCheck(Context.Message.Author.Id)))
             {

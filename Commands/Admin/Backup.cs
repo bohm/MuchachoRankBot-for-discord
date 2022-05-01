@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    public class Backup : CommonBase
+    public class Backup : AdminCommonBase
     {
+        public static readonly string Name = "!backup";
+        public static readonly string Description = "Backs up the current memory of the bot into the Discord message and into the secondary json backup.";
         [Command("backup")]
         public async Task BackupCommand()
         {

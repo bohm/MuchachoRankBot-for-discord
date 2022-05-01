@@ -6,8 +6,11 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    public class ResetUser : CommonBase
+    public class ResetUser : AdminCommonBase
     {
+        public static readonly string Name = "!resetuser discordUsername";
+        public static readonly string Description = "Clears the ranks of a specific user. Equivalent to !reset. Needs a discord username as a parameter.";
+
         [Command("resetuser")]
         public async Task ResetUserCommand(string discordUsername)
         {

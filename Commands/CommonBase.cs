@@ -83,4 +83,12 @@ namespace RankBot
             await logChan.SendMessageAsync(logString);
         }
     }
+
+    /// <summary>
+    /// A common base for admin commands. Currently used for reflection purposes only.
+    /// </summary>
+    public class AdminCommonBase : CommonBase
+    {
+
+    }
 }

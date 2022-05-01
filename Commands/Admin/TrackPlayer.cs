@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    public class TrackPlayer : CommonBase
+    public class TrackPlayer : AdminCommonBase
     {
+        public static readonly string Name = "!trackuser discordUsername uplayNick";
+        public static readonly string Description = "Starts tracking a specific user. Equivalent to !track.";
         [Command("trackplayer")]
         public async Task TrackPlayerCommand(string discordUsername, string nick)
         {

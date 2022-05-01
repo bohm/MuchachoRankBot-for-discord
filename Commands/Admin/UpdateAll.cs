@@ -6,10 +6,12 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    public class UpdateAll : CommonBase
+    public class UpdateAll : AdminCommonBase
     {
+        public static readonly string Name = "!updateall";
+        public static readonly string Description = "Triggers the update of all people at the Discord server, which normally runs periodically.";
         [Command("updateall")]
-        public async Task UpdateAllCommand()
+        public async Task UpdateAllCommandAsync()
         {
             if (!(await InstanceCheck() && await OperatorCheck(Context.Message.Author.Id)))
             {

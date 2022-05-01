@@ -4,24 +4,39 @@ using System;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    public class AdminInfo : CommonBase
+    public class AdminInfo : AdminCommonBase
     {
+        public static readonly string Name = "!admincommands";
+        public static readonly string Description = "Lists all administrative commands";
         [Command("admincommands")]
-        public async Task AdminInfoCommand()
+        public async Task AdminInfoCommandAsync()
         {
-            await ReplyAsync(@"Available admin commands:
-!populate -- creates the required roles for the bot to work. Necessary before any tracking can start.
-!resetuser ID -- clears the ranks of a specific user. Equivalent to !reset. Needs discord ID (the ulong) as parameter.
-!updateuser discordUsername -- updates the rank of a specific user. Equivalent to !update.
-!updateall -- triggers the update of all people at the Discord server, which normally runs periodically.
-!backup -- backs up the current memory of the bot into the Discord message and into the secondary json backup.
-!manualrank discordUsername spectralRankName -- Sets a rank without querying anything. Useful for debugging or a quick correction.
-!trackuser discordUsername uplayNick -- starts tracking a specific user. Equivalent to !track.");
+            // Uses reflection to get all commands defined as descendants of CommonBase, and lists their name and description.
+            StringBuilder advancedReply = new StringBuilder();
+            var assembly = this.GetType().Assembly;
+            var commands = assembly.GetTypes().Where(t => t.IsSubclassOf(typeof(AdminCommonBase)));
+            foreach (var commandType in commands)
+            {
+                var nameField = commandType.GetField("Name");
+                var descriptionField = commandType.GetField("Description");
+
+                if (nameField != null && descriptionField != null)
+                {
+                    string commandName = (string)nameField.GetValue(null);
+                    string commandDescription = (string)descriptionField.GetValue(null);
+                    advancedReply.Append(commandName);
+                    advancedReply.Append(" -- ");
+                    advancedReply.Append(commandDescription);
+                    advancedReply.Append("\n");
+                }
+            }
+            await ReplyAsync(advancedReply.ToString());
         }
     }
 }

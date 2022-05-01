@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.Admin
 {
-    public class ShushPlayer : CommonBase
+    public class ShushPlayer : AdminCommonBase
     {
+        public static readonly string Name = "!shushplayer discordUsername";
+        public static readonly string Description = "Removes tagging roles from a Discord user.";
         [Command("shushplayer")]
         public async Task ShushPlayerCommand(string discordUsername)
         {
