@@ -19,23 +19,31 @@ namespace RankBot
     }
 
     /// <summary>
+    /// Special ranks which are awarded based on number of games played.
+    /// </summary>
+    public struct SpecialRanks
+    {
+        public static readonly Rank Undefined = new Rank(Metal.Undefined, 0);
+        public static readonly Rank Rankless = new Rank(Metal.Rankless, 0);
+        public static readonly Rank Champion = new Rank(Metal.Champion, 0);
+    }
+
+    /// <summary>
     /// A static class holding parameters of ranking, Discord roles corresponding to the ranks
     /// and converting metals.
     /// </summary>
     public class Ranking
     {
-
-        public static readonly Rank[] AllRanks =
+        public static readonly Rank[] NormalRanks =
         {
-            new Rank(Metal.Rankless, 0),
             new Rank(Metal.Copper, 5), new Rank(Metal.Copper, 4), new Rank(Metal.Copper, 3), new Rank(Metal.Copper, 2), new Rank(Metal.Copper, 1),
             new Rank(Metal.Bronze, 5), new Rank(Metal.Bronze, 4), new Rank(Metal.Bronze, 3), new Rank(Metal.Bronze, 2), new Rank(Metal.Bronze, 1),
             new Rank(Metal.Silver, 5), new Rank(Metal.Silver, 4), new Rank(Metal.Silver, 3), new Rank(Metal.Silver, 2), new Rank(Metal.Silver, 1),
             new Rank(Metal.Gold, 3), new Rank(Metal.Gold, 2), new Rank(Metal.Gold, 1),
             new Rank(Metal.Platinum, 3), new Rank(Metal.Platinum, 2), new Rank(Metal.Platinum, 1),
             new Rank(Metal.Diamond, 3), new Rank(Metal.Diamond, 2), new Rank(Metal.Diamond, 1),
-            new Rank(Metal.Champion, 0)
         };
+
         /// <summary>
         /// Lower thresholds for ranks.
         /// Source: https://vignette.wikia.nocookie.net/rainbowsix/images/f/f3/Ranked_Skill_Levels.PNG/revision/latest?cb=20190913014632
@@ -49,8 +57,9 @@ namespace RankBot
             2600, 2800, 3000,
             3200, 3500, 3800,
             4100, 4400, 4700,
-            5000
+            // 5000 -- We treat Champion rank differently, and so D1 is the highest rank you can get "without checking level".
         };
+
 
         public static readonly string[] LoudMetalRoles =
         {   
@@ -82,15 +91,37 @@ namespace RankBot
                             "D3", "D2", "D1"
         };
 
+        /// <summary>
+        /// Rank computation from MMR and matches played.
+        /// Update when the ranking system changes.
+        /// </summary>
+        public static Rank RankComputation(int mmr, int matchesPlayedThisSeason)
+        {
+            if (matchesPlayedThisSeason < 10)
+            {
+                return SpecialRanks.Rankless;
+            }
+
+            if (matchesPlayedThisSeason >= 100 && mmr >= 5000)
+            {
+                return SpecialRanks.Champion;
+            }
+
+            else
+            {
+                return MMRToRank(mmr);
+            }
+        }
+
         public static Rank MMRToRank(int mmr)
         {
             int i = 0;
-            while (i < MMRLowThresholds.Length && mmr >= MMRLowThresholds[i])
+            while (i < (MMRLowThresholds.Length) && mmr >= MMRLowThresholds[i])
             {
                 i++;
             }
 
-            return AllRanks[i + 1];
+            return NormalRanks[i];
         }
 
         /// <summary>
@@ -226,17 +257,26 @@ namespace RankBot
         /// <returns>Object of type rank that represents the found role, or Unranked, if it fails.</returns>
         public static Rank FindRankFromSpectral(string rolename)
         {
-            Rank ret = new Rank(Metal.Undefined, 0);
-            foreach (Rank r in AllRanks)
+            foreach (Rank r in NormalRanks)
             {
                 string spectralname = r.SpectralFullPrint();
                 if (spectralname == rolename)
                 {
-                    ret = r;
-                    break;
+                    return r;
                 }
             }
-            return ret;
+            // Try special ranks also.
+            if (SpecialRanks.Rankless.SpectralFullPrint() == rolename)
+            {
+                return SpecialRanks.Rankless;
+            }
+            
+            if (SpecialRanks.Champion.SpectralFullPrint() == rolename)
+            {
+                return SpecialRanks.Champion;
+            }
+
+            return SpecialRanks.Undefined;
         }
         /// <summary>
         /// When given a list of strings (presumably all roles of a user), returns only the spectral roles

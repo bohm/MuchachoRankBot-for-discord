@@ -15,10 +15,11 @@ using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 
 using RankBot.Extensions;
+using RankBot.Commands;
 
 namespace RankBot
 {
-    class Bot
+    partial class Bot
     {
         public static Bot Instance;
         public bool constructionComplete = false;
@@ -42,6 +43,10 @@ namespace RankBot
 
         // Parameters used by extensions, might be null if extensions are turned off.
         private Extensions.MainHighlighter _highlighter;
+
+        // Command handler.
+        private CommandManagement _mgmt;
+
         public Extensions.BanTracking bt;
 
         public Bot()
@@ -100,12 +105,22 @@ namespace RankBot
             BackupGuildConfiguration bgc = await RestoreGuildConfiguration();
             guilds = new DiscordGuilds(bgc, client);
 
+            // New command manager.
+            _mgmt = new CommandManagement();
             // We check for role creation here, instead of inside the constructor of DiscordGuild.
             // We do this not to make the constructor async itself. It might be better to check there.
             foreach (DiscordGuild g in guilds.byID.Values)
             {
                 await g.RolePresenceCheckAsync();
+
+                // We also register commands here. This does not need to run every time.
+                if (Settings.RegenerateSlashCommands)
+                {
+                    await _mgmt.CreateGuildCommandsAsync(client, g);
+                }
             }
+
+            client.SlashCommandExecuted += _mgmt.SlashCommandHandlerAsync;
 
             Console.WriteLine("Populating data from the message backup.");
 

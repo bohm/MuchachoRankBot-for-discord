@@ -1,4 +1,5 @@
 ﻿using Discord.Commands;
+using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -6,20 +7,24 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    public class Reset : CommonBase
+    public class Reset : UserCommonBase
     {
-        [Command("reset")]
-        public async Task ResetCommandAsync()
+        public static readonly bool SlashCommand = true;
+
+        public Reset()
         {
-            if (!await InstanceCheck())
-            {
-                return;
-            }
+            SlashName = "reset";
+            SlashDescription = "Smaze vsechny rankove role a vsechny informace o vas z databaze, zacnete 's cistym stitem'.";
+        }
 
-            var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
+        public async override Task ProcessCommandAsync(Discord.WebSocket.SocketSlashCommand command)
+        {
+            var author = (SocketGuildUser)command.User;
 
-            var sourceGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
-            await LogCommand(sourceGuild, author, "/reset");
+            // Log the command.
+            var sourceGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+            _ = LogCommand(sourceGuild, author, "/reset");
+            await command.DeferAsync(ephemeral: true);
 
             foreach (DiscordGuild g in Bot.Instance.guilds.byID.Values)
             {
@@ -27,9 +32,13 @@ namespace RankBot.Commands.User
                 {
                     await g.RemoveAllRankRoles(author.Id);
                     await Bot.Instance._data.RemoveFromDatabases(author.Id);
-                    await ReplyAsync(author.Username + ": Smazali jsme o vas vsechny informace. Muzete se nechat znovu trackovat.");
+
                 }
             }
+
+            await command.ModifyOriginalResponseAsync(
+                resp => resp.Content = $"Rank resetovan.");
+            return;
         }
     }
 }

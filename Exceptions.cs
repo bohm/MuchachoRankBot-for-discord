@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.Serialization;
 
 namespace RankBot
 {
@@ -98,6 +99,26 @@ namespace RankBot
 
         public BanParsingException(string message, Exception inner)
             : base(message, inner)
+        {
+        }
+    }
+
+    [Serializable]
+    public class BackupException : Exception
+    {
+        public BackupException()
+        {
+        }
+
+        public BackupException(string message) : base(message)
+        {
+        }
+
+        public BackupException(string message, Exception innerException) : base(message, innerException)
+        {
+        }
+
+        protected BackupException(SerializationInfo info, StreamingContext context) : base(info, context)
         {
         }
     }

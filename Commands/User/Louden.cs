@@ -1,4 +1,5 @@
 ﻿using Discord.Commands;
+using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -6,24 +7,29 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    public class Louden : CommonBase
+    public class Louden : UserCommonBase
     {
-        [Command("nahlas")]
-        public async Task LoudenCommandAsync()
+        public Louden()
         {
-            if (!await InstanceCheck())
-            {
-                return;
-            }
+            SlashName = "nahlas";
+            SlashDescription = "Bot vam zapne zpet pingovatelne role, pokud jste si je predtim vypli.";
+        }
+
+        public static readonly bool SlashCommand = true;
+
+        public override async Task ProcessCommandAsync(SocketSlashCommand command)
+        {
+            await command.DeferAsync(ephemeral: true);
             // Add the user to any mentionable rank roles.
-            var author = Context.Message.Author;
+            var author = command.User as SocketGuildUser;
 
             // Log command.
-            var sourceGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
-            await LogCommand(sourceGuild, author, "/nahlas");
+            var sourceGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+            _ = LogCommand(sourceGuild, author, "/nahlas");
 
             await Bot.Instance.LoudenUserAndAddRoles(author.Id);
-            await ReplyAsync(author.Username + ": Nyni budete notifikovani, kdyz nekdo zapne vasi roli.");
+            await command.ModifyOriginalResponseAsync(
+                resp => resp.Content = "Nyni budete notifikovani, kdyz nekdo zapne vasi roli.");
         }
     }
 }

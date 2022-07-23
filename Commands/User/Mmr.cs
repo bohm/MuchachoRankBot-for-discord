@@ -1,34 +1,58 @@
 ﻿using Discord.Commands;
+using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    public class Mmr : CommonBase
+    public class Mmr : UserCommonBase
     {
-        [Command("mmr")]
-        public async Task MmrCommandAsync(string discordNick)
+
+        public Mmr()
         {
-            if (!await InstanceCheck())
+            SlashName = "mmr";
+            SlashDescription = "Vypise aktualni MMR hrace (napr. abyste vedeli, jestli se s nim vejdete).";
+            ParameterList.Add(new CommandParameter("user", Discord.ApplicationCommandOptionType.User, "Discord prezdivka", true));
+        }
+
+        public static readonly bool SlashCommand = true;
+
+
+        public override async Task ProcessCommandAsync(Discord.WebSocket.SocketSlashCommand command)
+        {
+            var author = (SocketGuildUser)command.User;
+
+            DiscordGuild contextGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+
+            await command.DeferAsync(ephemeral: true);
+
+            var targetUser = (SocketGuildUser)command.Data.Options.First(x => x.Name == "user").Value;
+
+            if (targetUser == null)
             {
+                await command.ModifyOriginalResponseAsync(
+                    resp => resp.Content = "Chybi parameter 'user', nemuzeme pokracovat.");
                 return;
             }
-            var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
-            DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
-            var target = contextGuild.GetSingleUser(discordNick);
 
-            // Log the command.
-            await LogCommand(contextGuild, author, "/mmr", $"/mmr {discordNick}");
-
+            var target = contextGuild.GetSingleUser(targetUser.Id);
             if (target == null)
             {
-                await ReplyAsync(author.Username + ": Nenasli jsme cloveka ani podle prezdivky, ani podle Discord jmena.");
+                await command.ModifyOriginalResponseAsync(
+                    resp => resp.Content = "Nenalezli jsme uzivatele na Discordu, nemuzeme pokracovat.");
                 return;
             }
 
-            if (Bot.Instance._data.DiscordUplay.ContainsKey(target.Id))
+            if (!Bot.Instance._data.DiscordUplay.ContainsKey(targetUser.Id))
+            {
+                await command.ModifyOriginalResponseAsync(
+                    resp => resp.Content = $"Discord uzivatel {targetUser.Username} nenalezen v databazi tracku.");
+                return;
+            }
+            else
             {
                 string uplayId = Bot.Instance._data.DiscordUplay[target.Id];
                 int mmr = -1;
@@ -37,25 +61,22 @@ namespace RankBot.Commands.User
                     mmr = await Bot.Instance.uApi.GetMMR(uplayId);
                     if (mmr < 0)
                     {
+                        await command.ModifyOriginalResponseAsync(
+                            resp => resp.Content = $"Nemohli jsme ukol dokoncit, problem komunikace s trackerem.");
                         throw new RankParsingException("Returned MMR is less than 0, that is almost surely wrong.");
                     }
                 }
                 catch (Exception r)
                 {
-                    await ReplyAsync(author.Username + ": Nepodarilo se ziskat MMR z trackeru.");
-                    await ReplyAsync("Admin info: " + r.Message);
+                    await command.ModifyOriginalResponseAsync(
+                        resp => resp.Content = $"Nemohli jsme ukol dokoncit, problem komunikace s trackerem.");
                     return;
                 }
-                await ReplyAsync($"{author.Username}: Clen {discordNick} ma {mmr} MMR.");
-                return;
-            }
-            else
-            {
-                await ReplyAsync(author.Username + ": Discord uzivatel " + discordNick + " existuje, ale nenasli jsme ho v databazi ranku.");
+
+                await command.ModifyOriginalResponseAsync(
+                    resp => resp.Content = $"Clen {targetUser.Username} ma {mmr} MMR.");
                 return;
             }
         }
-
-
     }
 }

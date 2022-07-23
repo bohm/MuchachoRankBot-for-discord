@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
+using Discord.WebSocket;
 
 namespace RankBot
 {
@@ -20,6 +21,17 @@ namespace RankBot
             {
                 await ReplyAsync("RankBot is not yet ready to process commands.");
 
+                return false;
+            }
+
+            return true;
+        }
+
+        protected async Task<bool> InstanceCheck(SocketSlashCommand command)
+        {
+            if (Bot.Instance == null || !Bot.Instance.constructionComplete)
+            {
+                await command.RespondAsync("The Discord server is not yet ready for commands.", ephemeral: true);
                 return false;
             }
 
@@ -82,6 +94,31 @@ namespace RankBot
 
             await logChan.SendMessageAsync(logString);
         }
+
+        protected async Task LogError(DiscordGuild g, SocketUser user, string commandName, string errorMessage)
+        {
+            if (!Settings.Logging)
+            {
+                return;
+            }
+
+            if (g.Config.loggingChannel == null)
+            {
+                return;
+            }
+
+            // Grab the logging channel.
+
+            Discord.WebSocket.SocketTextChannel logChan = g._socket.TextChannels.First(x => x.Name == g.Config.loggingChannel);
+
+            if (logChan == null)
+            {
+                return;
+            }
+
+            string logString = $"{DateTime.Now.ToString("s")}: {commandName} failed for the user {user.Username} (ID: {user.Id}): {errorMessage}.";
+            await logChan.SendMessageAsync(logString);
+        }
     }
 
     /// <summary>
@@ -91,4 +128,35 @@ namespace RankBot
     {
 
     }
+
+    /// <summary>
+    /// A wrapper to collect data about command parameters before their generation.
+    /// </summary>
+    public class CommandParameter
+    {
+        public string Name;
+        public Discord.ApplicationCommandOptionType Type;
+        public string Description;
+        public bool IsRequired;
+
+        public CommandParameter(string name, ApplicationCommandOptionType type, string desc, bool isRequired = false)
+        {
+            Name = name;
+            Type = type;
+            Description = desc;
+            IsRequired = isRequired;
+        }
+    }
+
+    /// <summary>
+    /// A common abstract base for user commands.
+    /// </summary>
+    public abstract class UserCommonBase : CommonBase
+    {
+        public string SlashName;
+        public string SlashDescription;
+        public List<CommandParameter> ParameterList = new();
+        public abstract Task ProcessCommandAsync(SocketSlashCommand command);
+    }
+
 }

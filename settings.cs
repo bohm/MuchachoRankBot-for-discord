@@ -18,12 +18,12 @@ namespace RankBot
         public const string backupFile = @"rsixbot.json";
 
         // Discord user IDs of all people that can run administrative commands through the bot.
-        public static readonly ulong[] Operators = { 428263908281942038, 213681987561586693 };
+        public static readonly ulong[] Operators = { 428263908281942038, 213681987561586693, 242905811175604225, 507961011815579649, 258974750422990848, 230336021219246081, 395934437910642688 };
 
         public static readonly TimeSpan updatePeriod = TimeSpan.FromHours(3); // How often do we update the ranks.
         public static readonly TimeSpan lockTimeout = TimeSpan.FromSeconds(1); // How long do we wait for acquiring the lock.
 
-        public const string botStatus = "Napiste !prikazy pro informace.";
+        public const string botStatus = "Pro info: /prikazy";
 
 
         // Enable or disable the logging mechanism.
@@ -38,6 +38,12 @@ namespace RankBot
         public static readonly bool UsingExtensionMatchmaking = true;
         public static readonly bool UsingExtensionRoleHighlights = true;
         public static readonly bool UsingExtensionBanTracking = true;
+
+        /// <summary>
+        /// Whether we should regenerate slash commands or not. Needs to be true for the first run
+        /// and any run where you add or remove slash commands.
+        /// </summary>
+        public static readonly bool RegenerateSlashCommands = false;
 
         // Computes a colour based on the role type
         public static Discord.Color roleColor(string roleName)

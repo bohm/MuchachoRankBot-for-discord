@@ -12,16 +12,14 @@ namespace RankBot
     class RankDataPoint
     {
         int MMR = 0;
-        // In principle, we would like to store matches this season, to compute the rank ourselves. However,
-        // this is currently not easy to get from r6.tracker.network website. 
-        // int matchesThisSeason = 0;
-        bool enoughMatchesPlayed = false;
+        int matchesThisSeason = 0;
         Rank deducedRank;
 
-        public RankDataPoint(int new_mmr, bool player_has_rank)
+        public RankDataPoint(int new_mmr, int matches)
         {
-            MMR = new_mmr; enoughMatchesPlayed = player_has_rank;
-            DeduceRankData();
+            MMR = new_mmr; matchesThisSeason = matches;
+            deducedRank = SpecialRanks.Undefined;
+            _ = DeduceRankData();
         }
         /// <summary>
         /// Computes the rank based on the internal mmr and played matches this season.
@@ -29,33 +27,13 @@ namespace RankBot
         /// </summary>
         public bool DeduceRankData()
         {
-            Rank oldRank = deducedRank;
-
-            if (!enoughMatchesPlayed)
+            Rank newrank = Ranking.RankComputation(MMR, matchesThisSeason);
+            if (newrank != deducedRank)
             {
-                deducedRank = new Rank(Metal.Rankless, 0);
-            } else
-            {
-                deducedRank = Ranking.MMRToRank(MMR);
-            }
-
-            if (oldRank == null || !oldRank.Equals(deducedRank))
-            {
+                deducedRank = newrank;
                 return true;
             }
-
             return false;
-        }
-
-        public bool UpdateDataPoint(int new_mmr, bool player_has_rank)
-        {
-            MMR = new_mmr; enoughMatchesPlayed = player_has_rank;
-            return DeduceRankData();
-        }
-                
-        public bool RankDeduced()
-        {
-            return (deducedRank != null);
         }
     }
 }

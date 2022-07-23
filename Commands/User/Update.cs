@@ -1,4 +1,5 @@
 ﻿using Discord.Commands;
+using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -6,57 +7,53 @@ using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    public class Update : CommonBase
+    public class Update : UserCommonBase
     {
-        [Command("update")]
-        public async Task UpdateCommandAsync()
+        public Update()
         {
-            if (!await InstanceCheck())
+            SlashName = "update";
+            SlashDescription = "Bot aktualizuje vas rank na soucasnou hodnotu. I bez prikazu se vas rank aktualizuje kazde 3 hodiny.";
+        }
+
+        public static readonly bool SlashCommand = true;
+        public override async Task ProcessCommandAsync(Discord.WebSocket.SocketSlashCommand command)
+        {
+            var author = (SocketGuildUser)command.User;
+
+            // Log the command.
+            var sourceGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+            _ = LogCommand(sourceGuild, author, "/update");
+            await command.DeferAsync(ephemeral: true);
+
+            string authorR6TabId = await Bot.Instance._data.QueryMapping(author.Id);
+
+            if (authorR6TabId == null)
             {
+                await command.ModifyOriginalResponseAsync(
+                    resp => resp.Content = $"Vas rank nebyl nalezen v databazi tracku.");
                 return;
             }
 
-            try
+            bool ret = await Bot.Instance.UpdateOne(author.Id);
+
+            if (ret)
             {
-                var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
-
-                // Log the command.
-                var sourceGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
-                await LogCommand(sourceGuild, author, "/update");
-
-                string authorR6TabId = await Bot.Instance._data.QueryMapping(author.Id);
-
-                if (authorR6TabId == null)
+                Rank r = await Bot.Instance._data.QueryRank(author.Id);
+                // Print user's rank too.
+                if (r.met == Metal.Undefined)
                 {
-                    await ReplyAsync(author.Username + ": vas rank netrackujeme, tak nemuzeme slouzit.");
+                    await command.ModifyOriginalResponseAsync(
+                        resp => resp.Content = $"Aktualizace vraci neplatny rank. Asi se neco pokazilo.");
                     return;
                 }
 
-                bool ret = await Bot.Instance.UpdateOne(author.Id);
-
-                if (ret)
-                {
-                    await ReplyAsync(author.Username + ": Aktualizovali jsme vase MMR a rank. Nezapomente, ze to jde jen jednou za 30 minut.");
-                    // Print user's rank too.
-                    Rank r = await Bot.Instance.uApi.GetRank(authorR6TabId);
-                    if (r.Digits())
-                    {
-                        await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + r.FullPrint());
-                    }
-                    else
-                    {
-                        await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + r.CompactFullPrint());
-                    }
-                }
-                else
-                {
-                    await ReplyAsync(author.Username + ": Stala se chyba pri aktualizaci ranku, mate stale predchozi rank.");
-                }
-
+                await command.ModifyOriginalResponseAsync(
+                    resp => resp.Content = $"Update ranku hotov, vas novy rank je {r.FullPrint()}.");
             }
-            catch (RankParsingException)
+            else
             {
-                await ReplyAsync("Communication to the R6Tab server failed. Please try again or contact the local Discord admins.");
+                await command.ModifyOriginalResponseAsync(
+                    resp => resp.Content = "Stala se chyba pri aktualizaci ranku, mate stale predchozi rank.");
                 return;
             }
         }

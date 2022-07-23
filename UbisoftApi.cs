@@ -23,14 +23,7 @@ namespace RankBot
 
         public Rank ToRank()
         {
-            if (wins + losses >= 10)
-            {
-                return Ranking.MMRToRank((int)mmr);
-            }
-            else
-            {
-                return new Rank(Metal.Rankless, 0);
-            }
+            return Ranking.RankComputation((int)mmr, wins + losses);
         }
     }
     class UbisoftRankResponse
@@ -233,9 +226,13 @@ namespace RankBot
             {
                 throw new RankParsingException("The response is malformed for some reason.");
             }
-            if (response.profiles.Count != 1)
+            else if (response.profiles.Count == 0)
             {
-                throw new RankParsingException("The number of profiles is larger than one, so we cannot continue.");
+                throw new RankParsingException("No profile with the nickname found.");
+            }
+            else if (response.profiles.Count > 1)
+            {
+                throw new RankParsingException("The number of profiles found with this name is larger than one.");
             }
 
             UbisoftUser curUser = response.profiles.First();

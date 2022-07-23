@@ -1,33 +1,50 @@
 ﻿using Discord.Commands;
+using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace RankBot.Commands.User
 {
-    public class Track : CommonBase
+    public class Track : UserCommonBase
     {
-        [Command("track")]
-        public async Task TrackCommandAsync(string nick)
+        public static readonly bool SlashCommand = true;
+
+        public Track()
         {
-            if (!await InstanceCheck())
+            SlashName = "track";
+            SlashDescription = "Bot zacne sledovat vase uspechy a prideli vam vas aktualni rank..";
+            ParameterList.Add(new CommandParameter("uplayname", Discord.ApplicationCommandOptionType.String, "Ubisoft jmeno", true));
+        }
+
+        public async override Task ProcessCommandAsync(Discord.WebSocket.SocketSlashCommand command)
+        {
+            var author = (SocketGuildUser)command.User;
+            DiscordGuild contextGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+            await command.DeferAsync(ephemeral: true);
+
+            var nick = (string)command.Data.Options.First(x => x.Name == "uplayname").Value;
+
+            if (nick == null)
             {
+                await command.ModifyOriginalResponseAsync(
+                    resp => resp.Content = "Chybi parametr 'Ubisoft jmeno', nemuzeme pokracovat.");
                 return;
             }
 
-            var author = (Discord.WebSocket.SocketGuildUser)Context.Message.Author;
-
-            // Log the command.
-            var sourceGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
-            await LogCommand(sourceGuild, author, "/track", $"/track {nick}");
+            await LogCommand(contextGuild, author, "/track", $"/track {nick}");
 
             try
             {
                 string queryR6ID = await Bot.Instance._data.QueryMapping(author.Id);
                 if (queryR6ID != null)
                 {
-                    await ReplyAsync(author.Username + ": Vas discord ucet uz sledujeme. / We are already tracking your Discord account.");
+                    const string errorMsg = "Vas discord ucet uz sledujeme. / We are already tracking your Discord account.";
+                    await command.ModifyOriginalResponseAsync(
+                          resp => resp.Content = errorMsg);
+                    await LogError(contextGuild, author, "/track", errorMsg);
                     return;
                 }
 
@@ -35,39 +52,43 @@ namespace RankBot.Commands.User
 
                 if (r6TabId == null)
                 {
-                    await ReplyAsync(author.Username + ": Nepodarilo se nam najit vas Uplay ucet. / We failed to find your Uplay account data.");
+                    const string errorMsg = "Nepodarilo se nam najit vas Uplay ucet. / We failed to find your Uplay account data.";
+                    await command.ModifyOriginalResponseAsync(
+                          resp => resp.Content = errorMsg);
+                    await LogError(contextGuild, author, "/track", errorMsg);
                     return;
                 }
+
                 await Bot.Instance._data.InsertIntoMapping(author.Id, r6TabId);
-                await ReplyAsync(author.Username + ": nove sledujeme vase uspechy pod prezdivkou " + nick + " na platforme PC. / We now track you as " + nick + " on PC.");
 
                 // Update the newly added user.
 
                 bool ret = await Bot.Instance.UpdateOne(author.Id);
+                Rank r = SpecialRanks.Undefined;
 
                 if (ret)
                 {
                     // Print user's rank too.
-                    Rank r = await Bot.Instance.uApi.GetRank(r6TabId);
-                    if (r.Digits())
-                    {
-                        await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + r.FullPrint());
-                    }
-                    else
-                    {
-                        await ReplyAsync(author.Username + ": Aktualne vidime vas rank jako " + r.CompactFullPrint());
-                    }
+                    r = await Bot.Instance.uApi.GetRank(r6TabId);
                 }
                 else
                 {
-                    await ReplyAsync(author.Username + ": Stala se chyba pri nastaven noveho ranku.");
+                    const string errorMsg = "Nalezli jsme ucet, ale update na novy rank se nezdaril.";
+                    await command.ModifyOriginalResponseAsync(resp => resp.Content = errorMsg);
+                    await LogError(contextGuild, author, "/track", errorMsg);
+                    return;
                 }
 
+                await command.ModifyOriginalResponseAsync(
+                    resp => resp.Content = $"Slinkovali jsme vas Discord s uctem {nick}, aktualne mate rank {r.FullPrint()}");
+                return;
 
             }
-            catch (RankParsingException)
+            catch (RankParsingException rpe)
             {
-                await ReplyAsync("Communication to the R6Tab server failed. Please try again or contact the local Discord admins.");
+
+                await ReplyAsync($"Nepodarilo se nastavit track, duvod: {rpe.Message}");
+                await LogError(contextGuild, author, "/track", rpe.Message);
                 return;
             }
         }
