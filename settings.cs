@@ -37,7 +37,7 @@ namespace RankBot
 
         public static readonly bool UsingExtensionMatchmaking = true;
         public static readonly bool UsingExtensionRoleHighlights = true;
-        public static readonly bool UsingExtensionBanTracking = true;
+        public static readonly bool UsingExtensionBanTracking = false;
 
         /// <summary>
         /// Whether we should regenerate slash commands or not. Needs to be true for the first run

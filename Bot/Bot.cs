@@ -406,12 +406,48 @@ namespace RankBot
                     Rank guessedRank = Ranking.GuessRank(allRoles);
                     Rank queriedRank = await _data.QueryRank(discordID);
 
+
+                    // Attempt to solve the inconsistency in the database.
+                    if (queriedRank == null)
+                    {
+                        Console.WriteLine($"The player {player.Username} does not have a stored rank, but has a uplay ID association. Fixing.");
+                        UbisoftRank response = await uApi.QuerySingleRank(uplayID);
+                        Rank actualRank = response.ToRank();
+                        Console.WriteLine($"Fetched rank {actualRank.FullPrint()} for player {player.Username}");
+                        await _data.UpdateRanks(discordID, actualRank);
+                        queriedRank = actualRank;
+                    }
+
                     if (!guessedRank.Equals(queriedRank))
                     {
                         try
                         {
-                            Console.WriteLine($"Guessed and queried rank of user {player.Username} on guild {guild.GetName()} do not match, guessed: ({guessedRank.FullPrint()},{guessedRank.level}), queried: ({queriedRank.FullPrint()},{queriedRank.level})");
-                            await UpdateRoles(discordID, queriedRank);
+                            Console.WriteLine($"Guessed and queried rank of user {player.Username} on guild {guild.GetName()} do not match.");
+                            if(queriedRank != null && guessedRank != null)
+                            {
+                                Console.WriteLine($"guessed: ({guessedRank.FullPrint()},{guessedRank.level}), queried: ({queriedRank.FullPrint()},{queriedRank.level})");
+                            }
+
+                            UbisoftRank response = await uApi.QuerySingleRank(uplayID);
+                            Rank actualRank = response.ToRank();
+                            Console.WriteLine($"Fetched rank {actualRank.FullPrint()} for player {player.Username}");
+
+                            if (!actualRank.Equals(queriedRank))
+                            {
+                                await _data.UpdateRanks(discordID, actualRank);
+                            }
+                            else
+                            {
+                                Console.WriteLine("Queried rank was correct, no need to update the DB.");
+                            }
+
+                            if (!actualRank.Equals(guessedRank))
+                            {
+                                await UpdateRoles(discordID, actualRank);
+                            }
+                            {
+                                Console.WriteLine("Guessed rank was correct, no need to update roles.");
+                            }
                         }
                         catch (RankParsingException)
                         {
@@ -478,7 +514,10 @@ namespace RankBot
         public async Task PerformBackup()
         {
             BackupData backup = await _data.PrepareBackup();
-            bt.ExtendBackup(backup);
+            if (Settings.UsingExtensionBanTracking)
+            {
+                bt.ExtendBackup(backup);
+            }
 
             // We have the backup data now, we can continue without the lock, as long as this was indeed a deep copy.
             Console.WriteLine($"Saving backup data to {Settings.backupFile}.");
