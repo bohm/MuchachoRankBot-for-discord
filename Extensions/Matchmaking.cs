@@ -377,20 +377,48 @@ namespace RankBot.Extensions
             DiscordGuild guild = bot.guilds.byID[sourceGuild];
             foreach (string username in tenOrTwenty)
             {
-                SocketGuildUser person = guild.GetSingleUser(username);
+                // First, we now accept user ID (the long ones) instead of nicknames, too.
+                // Thus, we first check if a username is a number.
+                ulong personalId = 0;
+                SocketGuildUser person = null;
+                string humanReadableUsername = username;
+
+                bool conversionSuccess = ulong.TryParse(username, out personalId);
+                if (conversionSuccess)
+                {
+                    person = guild.GetSingleUser(personalId);
+                    // Replace the username given by the command, which might be a long number, into a human-readable one.
+                    if (person != null)
+                    {
+                        if (person.Nickname != null && person.Nickname.Length > 0) 
+                        {
+                            humanReadableUsername = person.Nickname;
+                        } else
+                        {
+                            humanReadableUsername = person.Username;
+                        }
+                    }
+                } else
+                {
+                    // Interpret as string, still query GetSingleUser() overload.
+                    person = guild.GetSingleUser(username);
+                    // humanReadableUsername is already assigned correctly.
+                }
+
                 if (person == null)
                 {
-                    await channel.SendMessageAsync($"The name \"{username}\" not matched to a Discord user.");
+                    await channel.SendMessageAsync($"The name \"{humanReadableUsername}\" not matched to a Discord user.");
                     return;
                 }
-                playerNames.Add(username);
+
+                playerNames.Add(humanReadableUsername);
                 playerIDs.Add(person.Id);
 
                 // Before trying to check MMR first, check if users are even tracked.
 
                 if (!bot._data.DiscordUplay.ContainsKey(person.Id))
                 {
-                    await channel.SendMessageAsync($"The name \"{username}\" does not seem to be tracked.");
+                    await channel.SendMessageAsync($"The name \"{humanReadableUsername}\" does not seem to be tracked.");
                     return;
                 }
             }
