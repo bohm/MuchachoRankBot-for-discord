@@ -43,6 +43,7 @@ namespace RankBot
 
         // Parameters used by extensions, might be null if extensions are turned off.
         private Extensions.MainHighlighter _highlighter;
+        public Extensions.LifetimeMmr MmrManager;
 
         // Command handler.
         private CommandManagement _mgmt;
@@ -128,26 +129,12 @@ namespace RankBot
             BackupData recoverData = await RestoreDataStructures();
             _data = new BotDataStructure(recoverData);
 
-            if (Settings.UsingExtensionBanTracking)
-            {
-                // Temporary: if the bds structure was not parsed from the backup, because it didn't exist, just create a new empty one.
-                if (recoverData.bds == null)
-                {
-                    Console.WriteLine("Unable to restore the old ban data structure, creating an empty one.");
-                    recoverData.bds = new Extensions.BanDataStructure();
-                }
-
-                bt = new Extensions.BanTracking(guilds, recoverData.bds);
-            }
-
-            if (Settings.UsingExtensionRoleHighlights)
-            {
-                _highlighter = new Extensions.MainHighlighter(guilds);
-            }
-
             Console.WriteLine("Loaded " + _data.DiscordUplay.Count + " discord -- uplay connections.");
             Console.WriteLine("Loaded " + _data.QuietPlayers.Count + " players who wish not to be pinged.");
             Console.WriteLine("Loaded " + _data.DiscordRanks.Count + " current player ranks.");
+
+            MmrManager = new LifetimeMmr();
+            await MmrManager.DelayedInit(_primary);
 
             constructionComplete = true;
         }
@@ -269,6 +256,12 @@ namespace RankBot
         {
             try
             {
+                if (!uApi.Online)
+                {
+                    await g.ReplyToUser("Ubisoft API aktualne neni dostupne a prikaz tedy nefunguje.", relevantChannelName, discordID);
+                    return;
+                }
+
                 // SocketGuildUser trackedPerson = g.GetSingleUser(discordID);
                 string queryR6ID = await _data.QueryMapping(discordID);
                 if (queryR6ID != null)
@@ -326,6 +319,11 @@ namespace RankBot
                 return;
             }
 
+            if (!uApi.Online)
+            {
+                return;
+            }
+
             bool userDoNotDisturb = await _data.QueryQuietness(discordID);
             foreach (DiscordGuild guild in guilds.byID.Values)
             {
@@ -339,6 +337,12 @@ namespace RankBot
         // Call RefreshRank() only when you hold the mutex to the internal dictionaries.
         private async Task RefreshRank(ulong discordID, string r6TabID)
         {
+            if (!uApi.Online)
+            {
+                Console.WriteLine("Ubisoft API not online, update skipped.");
+                return;
+            }
+
             try
             {
 
@@ -391,6 +395,13 @@ namespace RankBot
             // This function should only be called at the initialization time anyway.
             int updates = 0;
             int preserved = 0;
+
+
+            if (!uApi.Online)
+            {
+                Console.WriteLine("Ubisoft API is offline, SyncRankRoles cannot proceed.");
+                return;
+            }
 
             foreach( (var discordID, var uplayID) in _data.DiscordUplay)
             {
@@ -469,7 +480,7 @@ namespace RankBot
         public async Task<bool> UpdateOne(ulong discordID)
         {
             // Ignore everything until the API connection to all guilds is ready.
-            if (guilds == null || !roleInitComplete)
+            if (guilds == null || !roleInitComplete || !uApi.Online)
             {
                 return false;
             }
@@ -489,7 +500,7 @@ namespace RankBot
         {
 
             // Ignore everything until the API connection to all guilds is ready.
-            if (guilds == null || !roleInitComplete)
+            if (guilds == null || !roleInitComplete || !uApi.Online)
             {
                 return;
             }
@@ -692,20 +703,10 @@ namespace RankBot
                 if (!constructionComplete)
                 {
                     await DelayedConstruction();
-                    if (Settings.UsingExtensionRoleHighlights)
-                    {
-                        client.MessageReceived += _highlighter.Filter;
-                    }
-
-                    if (Settings.UsingExtensionBanTracking)
-                    {
-                        banTimer = new Timer(new TimerCallback(bt.UpdateStructure), null, TimeSpan.FromMinutes(2), TimeSpan.FromHours(12));
-                    }
-
                 }
                 if (!roleInitComplete)
                 {
-                    _ = SyncRankRolesAndData();
+                    // _ = SyncRankRolesAndData();
                 }
 
                 return;
@@ -717,7 +718,7 @@ namespace RankBot
             {
                 // We do the big update also in a separate thread.
                 await Task.Delay(Settings.updatePeriod);
-                _ = UpdateAndBackup(null);
+                // _ = UpdateAndBackup(null);
             }
             // await Task.Delay();
         }

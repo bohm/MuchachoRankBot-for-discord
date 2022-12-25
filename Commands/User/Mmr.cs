@@ -29,6 +29,15 @@ namespace RankBot.Commands.User
 
             await command.DeferAsync(ephemeral: true);
 
+            if (!Bot.Instance.uApi.Online)
+            {
+                const string errorMsg = "Ubisoft API aktualne neni dostupne, nemuzeme prikaz dokoncit.";
+                await command.ModifyOriginalResponseAsync(
+                      resp => resp.Content = errorMsg);
+                await LogError(contextGuild, author, "/mmr", errorMsg);
+                return;
+            }
+
             var targetUser = (SocketGuildUser)command.Data.Options.First(x => x.Name == "user").Value;
 
             if (targetUser == null)

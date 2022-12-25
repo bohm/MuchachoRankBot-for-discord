@@ -221,6 +221,11 @@ namespace RankBot
             }
         }
 
+        public SocketTextChannel TextChannelById(ulong id)
+        {
+            return _socket.TextChannels.FirstOrDefault(x => x.Id == id);
+        }
+
         public async Task AddSpectralRoles(Discord.WebSocket.SocketUser Author, Rank rank)
         {
             var Us = (Discord.WebSocket.SocketGuildUser)Author;
@@ -269,7 +274,7 @@ namespace RankBot
         }
     }
 
-    class PrimaryDiscordGuild
+    public class PrimaryDiscordGuild
     {
         public SocketGuild _socket; // soft TODO: make private
         public PrimaryDiscordGuild(DiscordSocketClient sc)

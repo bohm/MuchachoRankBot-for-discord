@@ -354,16 +354,18 @@ namespace RankBot.Extensions
             return sb.ToString();
         }
 
-        public async Task BuildTeams(Bot bot, ulong sourceGuild, Discord.WebSocket.ISocketMessageChannel channel, int groupSize, params string[] tenOrTwenty)
+        public async Task BuildTeams(Bot bot, ulong sourceGuild, ulong TargetChannel, int groupSize, params string[] tenOrTwenty)
         {
             List<string> playerNames = new List<string>();
             List<ulong> playerIDs = new List<ulong>();
             List<(int, int)> playerMMR = new List<(int, int)>();
 
+
             // The command actually checks this first, but let's also check this for the sake of consistency.
             if (tenOrTwenty.Length % groupSize != 0)
             {
-                await channel.SendMessageAsync("Group size is not divisible by list length.");
+                var responseChannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+                await responseChannel.SendMessageAsync("Group size is not divisible by list length.");
                 return;
             }
 
@@ -407,7 +409,8 @@ namespace RankBot.Extensions
 
                 if (person == null)
                 {
-                    await channel.SendMessageAsync($"The name \"{humanReadableUsername}\" not matched to a Discord user.");
+                    var responseChannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+                    await responseChannel.SendMessageAsync($"The name \"{humanReadableUsername}\" not matched to a Discord user.");
                     return;
                 }
 
@@ -416,9 +419,10 @@ namespace RankBot.Extensions
 
                 // Before trying to check MMR first, check if users are even tracked.
 
-                if (!bot._data.DiscordUplay.ContainsKey(person.Id))
+                if (bot.MmrManager.GetMmr(person.Id) == -1)
                 {
-                    await channel.SendMessageAsync($"The name \"{humanReadableUsername}\" does not seem to be tracked.");
+                    var responseChannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+                    await responseChannel.SendMessageAsync($"The name \"{humanReadableUsername}\" does not seem to have a lifetime MMR.");
                     return;
                 }
             }
@@ -428,22 +432,23 @@ namespace RankBot.Extensions
             {
                 string player = playerNames[i];
                 ulong disId = playerIDs[i];
-                string uplayId = bot._data.DiscordUplay[disId];
 
                 int mmr = -1;
                 try
                 {
-                    mmr = await Bot.Instance.uApi.GetMMR(uplayId);
+                    mmr = Convert.ToInt32(Bot.Instance.MmrManager.GetMmr(disId));
                 }
                 catch (Exception)
                 {
-                    await channel.SendMessageAsync($"Error while fetching r6.tracker.network data for {player}.");
+                    var responseChannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+                    await responseChannel.SendMessageAsync($"Error while fetching r6.tracker.network data for {player}.");
                     return;
                 }
 
                 if (mmr < 0)
                 {
-                    await channel.SendMessageAsync($"Error while fetching r6.tracker.network data for {player}.");
+                    var responseChannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+                    await responseChannel.SendMessageAsync($"Error while fetching r6.tracker.network data for {player}.");
                     return;
                 }
 
@@ -459,11 +464,12 @@ namespace RankBot.Extensions
 
             List<List<int>> bestPartitions = eb.StoredBest;
 
-            await channel.SendMessageAsync("Best choice:");
+            var rchannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+            await rchannel.SendMessageAsync("Best choice:");
             int teamId = 0;
             foreach(var team in bestPartitions)
             {
-                await channel.SendMessageAsync(TeamString(team, teamId, maxMin, playerNames));
+                await rchannel.SendMessageAsync(TeamString(team, teamId, maxMin, playerNames));
                 teamId++;
             }
 

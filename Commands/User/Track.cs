@@ -36,6 +36,15 @@ namespace RankBot.Commands.User
 
             await LogCommand(contextGuild, author, "/track", $"/track {nick}");
 
+            if (!Bot.Instance.uApi.Online)
+            {
+                const string errorMsg = "Ubisoft API aktualne neni dostupne, nemuzeme prikaz dokoncit.";
+                await command.ModifyOriginalResponseAsync(
+                      resp => resp.Content = errorMsg);
+                await LogError(contextGuild, author, "/track", errorMsg);
+                return;
+            }
+
             try
             {
                 string queryR6ID = await Bot.Instance._data.QueryMapping(author.Id);

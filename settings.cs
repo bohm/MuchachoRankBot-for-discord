@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 
 namespace RankBot
 {
@@ -25,6 +26,8 @@ namespace RankBot
 
         public const string botStatus = "Pro info: /prikazy";
 
+        // A global switch to turn off API synchronization, for example when the API changes.
+        public static readonly bool ApiOfflineMode = true;
 
         // Enable or disable the logging mechanism.
         public static readonly bool Logging = true;

@@ -59,6 +59,7 @@ namespace RankBot
 
     class UbisoftApi
     {
+        public bool Online = false;
         private readonly HttpClient _httpClient = new HttpClient();
         private UbisoftAuth _token;
         private Timer _reAuthTimer;
@@ -68,11 +69,16 @@ namespace RankBot
 
         public async Task DelayedInit()
         {
-            await ReAuth();
+            if (!Settings.ApiOfflineMode)
+            {
+                await ReAuth();
+            }
         }
 
         public async Task ReAuth()
         {
+            // We set Online to be false when re-authenticating.
+            Online = false;
             // Remark: Since we are running this in a separate thread, a locking for the token API might be needed.
             // On the other hand, the string "_token.ticket" should be valid at all times, as we reauthorize
             // one minute before expiration. As long as only queries to "_token.ticket" are made, locking is not required.
@@ -86,6 +92,7 @@ namespace RankBot
                 throw new Exception("Reauth time computation is outside the expected bounds.");
             }  
             Console.WriteLine($"Logged in to the Ubisoft API. We will reauth in {untilReauth.TotalMinutes} minutes.");
+            Online = true;
             _reAuthTimer = new Timer(async x => { await this.ReAuth(); }, null, untilReauth, Timeout.InfiniteTimeSpan);
         }
 

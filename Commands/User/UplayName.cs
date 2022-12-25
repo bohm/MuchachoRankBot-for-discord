@@ -41,6 +41,16 @@ namespace RankBot.Commands.User
             // Log the command.
             await LogCommand(contextGuild, author, "/uplay", $"/uplay {targetUser.Username}");
 
+
+            if (!Bot.Instance.uApi.Online)
+            {
+                const string errorMsg = "Ubisoft API aktualne neni dostupne, nemuzeme prikaz dokoncit.";
+                await command.ModifyOriginalResponseAsync(
+                      resp => resp.Content = errorMsg);
+                await LogError(contextGuild, author, "/uplay", errorMsg);
+                return;
+            }
+
             var target = contextGuild.GetSingleUser(targetUser.Id);
             if (target == null)
             {

@@ -23,7 +23,8 @@ namespace RankBot.Commands
             {
                 await ReplyAsync("Trying to matchmake, please give me a few seconds.");
                 Matchmaking m = new Matchmaking();
-                _ = m.BuildTeams(Bot.Instance, Context.Guild.Id, Context.Channel, 5, users);
+                ulong channelId = Context.Channel.Id;
+                _ = m.BuildTeams(Bot.Instance, Context.Guild.Id, channelId, 5, users);
             }
 
         }
@@ -39,7 +40,7 @@ namespace RankBot.Commands
             {
                 await ReplyAsync("Trying to matchmake, please give me a few seconds.");
                 Matchmaking m = new Matchmaking();
-                _ = m.BuildTeams(Bot.Instance, Context.Guild.Id, Context.Channel, groups, users);
+                _ = m.BuildTeams(Bot.Instance, Context.Guild.Id, Context.Channel.Id, groups, users);
             }
 
         }
