@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace RankBot
 {
-    class BotDataStructure
+    public class BotDataStructure
     {
         // The internal mapping between Discord names and R6TabIDs which we use to track ranks. 
         public Dictionary<ulong, string> DiscordUplay;

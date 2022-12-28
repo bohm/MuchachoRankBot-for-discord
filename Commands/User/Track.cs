@@ -22,7 +22,7 @@ namespace RankBot.Commands.User
         public async override Task ProcessCommandAsync(Discord.WebSocket.SocketSlashCommand command)
         {
             var author = (SocketGuildUser)command.User;
-            DiscordGuild contextGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+            DiscordGuild contextGuild = Bot.Instance.Guilds.byID[author.Guild.Id];
             await command.DeferAsync(ephemeral: true);
 
             var nick = (string)command.Data.Options.First(x => x.Name == "uplayname").Value;
@@ -36,7 +36,7 @@ namespace RankBot.Commands.User
 
             await LogCommand(contextGuild, author, "/track", $"/track {nick}");
 
-            if (!Bot.Instance.uApi.Online)
+            if (!Bot.Instance.UApi.Online)
             {
                 const string errorMsg = "Ubisoft API aktualne neni dostupne, nemuzeme prikaz dokoncit.";
                 await command.ModifyOriginalResponseAsync(
@@ -47,7 +47,7 @@ namespace RankBot.Commands.User
 
             try
             {
-                string queryR6ID = await Bot.Instance._data.QueryMapping(author.Id);
+                string queryR6ID = await Bot.Instance.Data.QueryMapping(author.Id);
                 if (queryR6ID != null)
                 {
                     const string errorMsg = "Vas discord ucet uz sledujeme. / We are already tracking your Discord account.";
@@ -57,7 +57,7 @@ namespace RankBot.Commands.User
                     return;
                 }
 
-                string r6TabId = await Bot.Instance.uApi.GetID(nick);
+                string r6TabId = await Bot.Instance.UApi.GetID(nick);
 
                 if (r6TabId == null)
                 {
@@ -68,7 +68,7 @@ namespace RankBot.Commands.User
                     return;
                 }
 
-                await Bot.Instance._data.InsertIntoMapping(author.Id, r6TabId);
+                await Bot.Instance.Data.InsertIntoMapping(author.Id, r6TabId);
 
                 // Update the newly added user.
 
@@ -78,7 +78,7 @@ namespace RankBot.Commands.User
                 if (ret)
                 {
                     // Print user's rank too.
-                    r = await Bot.Instance.uApi.GetRank(r6TabId);
+                    r = await Bot.Instance.UApi.GetRank(r6TabId);
                 }
                 else
                 {

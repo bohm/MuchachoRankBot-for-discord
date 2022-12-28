@@ -19,7 +19,7 @@ namespace RankBot.Commands.Admin
                 return;
             }
 
-            DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            DiscordGuild contextGuild = Bot.Instance.Guilds.byID[Context.Guild.Id];
             Discord.WebSocket.SocketGuildUser target = contextGuild.GetSingleUser(discordUsername);
 
             if (target == null)
@@ -30,7 +30,7 @@ namespace RankBot.Commands.Admin
             else
             {
                 await ReplyAsync($"Erasing all roles and ranks from the user {target.Username} from all guilds. ");
-                foreach (var guild in Bot.Instance.guilds.guildList)
+                foreach (var guild in Bot.Instance.Guilds.guildList)
                 {
                     if (guild.IsGuildMember(target.Id))
                     {
@@ -38,7 +38,7 @@ namespace RankBot.Commands.Admin
                     }
                 }
 
-                await Bot.Instance._data.RemoveFromDatabases(target.Id);
+                await Bot.Instance.Data.RemoveFromDatabases(target.Id);
             }
         }
     }

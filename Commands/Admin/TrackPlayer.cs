@@ -19,7 +19,7 @@ namespace RankBot.Commands.Admin
                 return;
             }
 
-            DiscordGuild guild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            DiscordGuild guild = Bot.Instance.Guilds.byID[Context.Guild.Id];
             var matchedUsers = guild.GetAllUsers(discordUsername);
 
             if (matchedUsers.Count() == 0)

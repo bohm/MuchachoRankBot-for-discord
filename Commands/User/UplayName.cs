@@ -25,7 +25,7 @@ namespace RankBot.Commands.User
         {
             var author = (SocketGuildUser) command.User;
 
-            DiscordGuild contextGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+            DiscordGuild contextGuild = Bot.Instance.Guilds.byID[author.Guild.Id];
 
             await command.DeferAsync(ephemeral: true);
 
@@ -42,7 +42,7 @@ namespace RankBot.Commands.User
             await LogCommand(contextGuild, author, "/uplay", $"/uplay {targetUser.Username}");
 
 
-            if (!Bot.Instance.uApi.Online)
+            if (!Bot.Instance.UApi.Online)
             {
                 const string errorMsg = "Ubisoft API aktualne neni dostupne, nemuzeme prikaz dokoncit.";
                 await command.ModifyOriginalResponseAsync(
@@ -59,7 +59,7 @@ namespace RankBot.Commands.User
                 return;
             }
 
-            if (!Bot.Instance._data.DiscordUplay.ContainsKey(targetUser.Id))
+            if (!Bot.Instance.Data.DiscordUplay.ContainsKey(targetUser.Id))
             {
                 await command.ModifyOriginalResponseAsync(
                     resp => resp.Content = $"Discord uzivatel {targetUser.Username} nenalezen v databazi tracku.");
@@ -67,13 +67,13 @@ namespace RankBot.Commands.User
             }
             else
             {
-                string uplayId = Bot.Instance._data.DiscordUplay[targetUser.Id];
+                string uplayId = Bot.Instance.Data.DiscordUplay[targetUser.Id];
                 // This is only the uplay id, the user name might be different. We have to query a tracker to get the current
                 // Uplay user name.
                 string uplayName = "";
                 try
                 {
-                    uplayName = await Bot.Instance.uApi.GetUplayName(uplayId);
+                    uplayName = await Bot.Instance.UApi.GetUplayName(uplayId);
                     if (uplayName == null || uplayName.Length == 0)
                     {
                         await command.ModifyOriginalResponseAsync(

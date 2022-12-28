@@ -24,7 +24,7 @@ namespace RankBot.Commands.User
             var author = command.User as SocketGuildUser;
 
             // Log command.
-            var sourceGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+            var sourceGuild = Bot.Instance.Guilds.byID[author.Guild.Id];
             _ = LogCommand(sourceGuild, author, "/nahlas");
 
             await Bot.Instance.LoudenUserAndAddRoles(author.Id);

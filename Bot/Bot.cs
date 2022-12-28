@@ -22,24 +22,24 @@ namespace RankBot
     partial class Bot
     {
         public static Bot Instance;
-        public bool constructionComplete = false;
+        public bool ConstructionComplete = false;
 
         // public DiscordWrapper dwrap;
-        private DiscordSocketClient client;
-        private CommandService commands;
-        private IServiceProvider services;
-        private bool roleInitComplete = false;
+        private DiscordSocketClient _client;
+        private CommandService _commands;
+        private IServiceProvider _services;
+        private bool _roleInitComplete = false;
         private bool _primaryServerLoaded = false;
-        private string botStatus = Settings.botStatus;
+        private string _botStatus = Settings.botStatus;
 
-        public UbisoftApi uApi;
-        public BotDataStructure _data;
+        public UbisoftApi UApi;
+        public BotDataStructure Data;
 
         // The primary guild, used for backing up data as well as loading configuration data about other guilds.
         private PrimaryDiscordGuild _primary = null;
         // The other guilds (possibly in cluding the primary one) where tracking and interfacing with users take place.
         // private List<DiscordGuild> _guildList;
-        public DiscordGuilds guilds;
+        public DiscordGuilds Guilds;
 
         // Parameters used by extensions, might be null if extensions are turned off.
         private Extensions.MainHighlighter _highlighter;
@@ -47,8 +47,6 @@ namespace RankBot
 
         // Command handler.
         private CommandManagement _mgmt;
-
-        public Extensions.BanTracking bt;
 
         public Bot()
         {
@@ -66,16 +64,11 @@ namespace RankBot
                 Console.WriteLine("Warning: There already exists a backup file, but your first run variable is set to true. Please keep it in mind");
             }
 
-            _data = new BotDataStructure();
-
-            if (Settings.UsingExtensionBanTracking)
-            {
-                bt = new Extensions.BanTracking(guilds);
-            }
+            Data = new BotDataStructure();
 
             if (Settings.UsingExtensionRoleHighlights)
             {
-                _highlighter = new Extensions.MainHighlighter(guilds);
+                _highlighter = new Extensions.MainHighlighter(Guilds);
             }
         }
 
@@ -97,70 +90,70 @@ namespace RankBot
                 return;
             }
 
-            if (constructionComplete)
+            if (ConstructionComplete)
             {
                 throw new PrimaryGuildException("Construction called twice, that is not allowed.");
             }
 
             Console.WriteLine("Restoring guild list configuration from message backup.");
             BackupGuildConfiguration bgc = await RestoreGuildConfiguration();
-            guilds = new DiscordGuilds(bgc, client);
+            Guilds = new DiscordGuilds(bgc, _client);
 
             // New command manager.
             _mgmt = new CommandManagement();
             // We check for role creation here, instead of inside the constructor of DiscordGuild.
             // We do this not to make the constructor async itself. It might be better to check there.
-            foreach (DiscordGuild g in guilds.byID.Values)
+            foreach (DiscordGuild g in Guilds.byID.Values)
             {
                 await g.RolePresenceCheckAsync();
 
                 // We also register commands here. This does not need to run every time.
                 if (Settings.RegenerateSlashCommands)
                 {
-                    await _mgmt.CreateGuildCommandsAsync(client, g);
+                    await _mgmt.CreateGuildCommandsAsync(_client, g);
                 }
             }
 
-            client.SlashCommandExecuted += _mgmt.SlashCommandHandlerAsync;
+            _client.SlashCommandExecuted += _mgmt.SlashCommandHandlerAsync;
 
             Console.WriteLine("Populating data from the message backup.");
 
 
             BackupData recoverData = await RestoreDataStructures();
-            _data = new BotDataStructure(recoverData);
+            Data = new BotDataStructure(recoverData);
 
-            Console.WriteLine("Loaded " + _data.DiscordUplay.Count + " discord -- uplay connections.");
-            Console.WriteLine("Loaded " + _data.QuietPlayers.Count + " players who wish not to be pinged.");
-            Console.WriteLine("Loaded " + _data.DiscordRanks.Count + " current player ranks.");
+            Console.WriteLine("Loaded " + Data.DiscordUplay.Count + " discord -- uplay connections.");
+            Console.WriteLine("Loaded " + Data.QuietPlayers.Count + " players who wish not to be pinged.");
+            Console.WriteLine("Loaded " + Data.DiscordRanks.Count + " current player ranks.");
 
             MmrManager = new LifetimeMmr();
             await MmrManager.DelayedInit(_primary);
 
-            constructionComplete = true;
+            ConstructionComplete = true;
         }
 
-        public async Task LoudenUserAndAddRoles(ulong discordID)
+        public async Task LoudenUserAndAddRoles(ulong discordId)
         {
-            await _data.MakePlayerLoud(discordID);
-            Rank r = await _data.QueryRank(discordID);
-            foreach (DiscordGuild g in guilds.byID.Values)
+            await Data.MakePlayerLoud(discordId);
+            Rank r = await Data.QueryRank(discordId);
+            foreach (DiscordGuild g in Guilds.byID.Values)
             {
-                if (g.IsGuildMember(discordID))
+                if (g.IsGuildMember(discordId))
                 {
-                    SocketGuildUser user = g._socket.Users.FirstOrDefault(x => x.Id == discordID);
+                    SocketGuildUser user = g._socket.Users.FirstOrDefault(x => x.Id == discordId);
                     await g.AddLoudRoles(user, r);
                 }
             }
         }
 
-        public async Task QuietenUserAndTakeRoles(ulong discordID)
+        public async Task QuietenUserAndTakeRoles(ulong discordId)
         {
-            await _data.ShushPlayer(discordID);
-            foreach (DiscordGuild g in guilds.byID.Values)
+            await Data.ShushPlayer(discordId);
+            foreach (DiscordGuild g in Guilds.byID.Values)
             {
-                if (g.IsGuildMember(discordID))
+                if (g.IsGuildMember(discordId))
                 {
-                    SocketGuildUser user = g._socket.Users.FirstOrDefault(x => x.Id == discordID);
+                    SocketGuildUser user = g._socket.Users.FirstOrDefault(x => x.Id == discordId);
                     await g.RemoveLoudRoles(user);
                 }
             }
@@ -252,61 +245,61 @@ namespace RankBot
             return bd;
         }
 
-        public async Task TrackUser(DiscordGuild g, ulong discordID, string uplayNickname, string relevantChannelName)
+        public async Task TrackUser(DiscordGuild g, ulong discordId, string uplayNickname, string relevantChannelName)
         {
             try
             {
-                if (!uApi.Online)
+                if (!UApi.Online)
                 {
-                    await g.ReplyToUser("Ubisoft API aktualne neni dostupne a prikaz tedy nefunguje.", relevantChannelName, discordID);
+                    await g.ReplyToUser("Ubisoft API aktualne neni dostupne a prikaz tedy nefunguje.", relevantChannelName, discordId);
                     return;
                 }
 
                 // SocketGuildUser trackedPerson = g.GetSingleUser(discordID);
-                string queryR6ID = await _data.QueryMapping(discordID);
+                string queryR6ID = await Data.QueryMapping(discordId);
                 if (queryR6ID != null)
                 {
-                    await g.ReplyToUser("Vas discord ucet uz sledujeme. / We are already tracking your Discord account.", relevantChannelName, discordID);
+                    await g.ReplyToUser("Vas discord ucet uz sledujeme. / We are already tracking your Discord account.", relevantChannelName, discordId);
                     return;
                 }
 
-                string r6TabId = await uApi.GetID(uplayNickname);
+                string r6TabId = await UApi.GetID(uplayNickname);
 
                 if (r6TabId == null)
                 {
-                    await g.ReplyToUser("Nepodarilo se nam najit vas Uplay ucet. / We failed to find your Uplay account data.", relevantChannelName, discordID);
+                    await g.ReplyToUser("Nepodarilo se nam najit vas Uplay ucet. / We failed to find your Uplay account data.", relevantChannelName, discordId);
                     return;
                 }
-                await _data.InsertIntoMapping(discordID, r6TabId);
-                await g.ReplyToUser($"Nove sledujeme vase uspechy pod prezdivkou {uplayNickname} na platforme PC. / We now track you as {uplayNickname} on PC.", relevantChannelName, discordID);
+                await Data.InsertIntoMapping(discordId, r6TabId);
+                await g.ReplyToUser($"Nove sledujeme vase uspechy pod prezdivkou {uplayNickname} na platforme PC. / We now track you as {uplayNickname} on PC.", relevantChannelName, discordId);
 
                 // Update the newly added user.
 
-                bool ret = await Bot.Instance.UpdateOne(discordID);
+                bool ret = await Bot.Instance.UpdateOne(discordId);
 
                 if (ret)
                 {
                     // Print user's rank too.
-                    Rank r = await uApi.GetRank(r6TabId);
+                    Rank r = await UApi.GetRank(r6TabId);
                     if (r.Digits())
                     {
-                        await g.ReplyToUser($"Aktualne vidime vas rank jako {r.FullPrint()}", relevantChannelName, discordID);
+                        await g.ReplyToUser($"Aktualne vidime vas rank jako {r.FullPrint()}", relevantChannelName, discordId);
                     }
                     else
                     {
-                        await g.ReplyToUser($"Aktualne vidime vas rank jako {r.CompactFullPrint()}", relevantChannelName, discordID);
+                        await g.ReplyToUser($"Aktualne vidime vas rank jako {r.CompactFullPrint()}", relevantChannelName, discordId);
                     }
                 }
                 else
                 {
-                    await g.ReplyToUser("Stala se chyba pri nastaven noveho ranku.", relevantChannelName, discordID);
+                    await g.ReplyToUser("Stala se chyba pri nastaven noveho ranku.", relevantChannelName, discordId);
                 }
 
 
             }
             catch (RankParsingException e)
             {
-                await g.ReplyToUser("Communication to the R6Tab server failed. Please try again or contact the local Discord admins.", relevantChannelName, discordID);
+                await g.ReplyToUser("Communication to the R6Tab server failed. Please try again or contact the local Discord admins.", relevantChannelName, discordId);
                 await g.Reply("Pro admina: " + e.Message, relevantChannelName);
             }
         }
@@ -314,18 +307,18 @@ namespace RankBot
         public async Task UpdateRoles(ulong discordID, Rank newRank)
         {
             // Ignore everything until dwrap.ResidentGuild is set.
-            if (!constructionComplete)
+            if (!ConstructionComplete)
             {
                 return;
             }
 
-            if (!uApi.Online)
+            if (!UApi.Online)
             {
                 return;
             }
 
-            bool userDoNotDisturb = await _data.QueryQuietness(discordID);
-            foreach (DiscordGuild guild in guilds.byID.Values)
+            bool userDoNotDisturb = await Data.QueryQuietness(discordID);
+            foreach (DiscordGuild guild in Guilds.byID.Values)
             {
                 if (guild.IsGuildMember(discordID))
                 {
@@ -335,9 +328,9 @@ namespace RankBot
         }
 
         // Call RefreshRank() only when you hold the mutex to the internal dictionaries.
-        private async Task RefreshRank(ulong discordID, string r6TabID)
+        private async Task RefreshRank(ulong discordId, string r6TabId)
         {
-            if (!uApi.Online)
+            if (!UApi.Online)
             {
                 Console.WriteLine("Ubisoft API not online, update skipped.");
                 return;
@@ -346,31 +339,31 @@ namespace RankBot
             try
             {
 
-                Rank fetchedRank = await uApi.GetRank(r6TabID);
+                Rank fetchedRank = await UApi.GetRank(r6TabId);
 
                 bool updateRequired = true;
-                if (await _data.TrackingContains(discordID))
+                if (await Data.TrackingContains(discordId))
                 {
-                    Rank curRank = await _data.QueryRank(discordID);
+                    Rank curRank = await Data.QueryRank(discordId);
                     if (curRank.Equals(fetchedRank))
                     {
                         updateRequired = false;
                     }
                     else
                     {
-                        Console.WriteLine("The fetched rank and the stored rank disagree for the user " + discordID);
+                        Console.WriteLine("The fetched rank and the stored rank disagree for the user " + discordId);
                         Console.WriteLine($"The fetched rank equals {fetchedRank} and the stored rank is {curRank}.");
                     }
                 }
                 else
                 {
-                    Console.WriteLine("The user with DiscordID " + discordID + " is not yet in the database of ranks.");
+                    Console.WriteLine("The user with DiscordID " + discordId + " is not yet in the database of ranks.");
                 }
 
                 if (updateRequired)
                 {
-                    await _data.UpdateRanks(discordID, fetchedRank);
-                    await UpdateRoles(discordID, fetchedRank);
+                    await Data.UpdateRanks(discordId, fetchedRank);
+                    await UpdateRoles(discordId, fetchedRank);
                 }
                 else
                 {
@@ -379,7 +372,7 @@ namespace RankBot
             }
             catch (RankParsingException)
             {
-                Console.WriteLine("Failed to update rank for player " + discordID);
+                Console.WriteLine("Failed to update rank for player " + discordId);
             }
             catch (System.Net.Http.HttpRequestException)
             {
@@ -397,15 +390,15 @@ namespace RankBot
             int preserved = 0;
 
 
-            if (!uApi.Online)
+            if (!UApi.Online)
             {
                 Console.WriteLine("Ubisoft API is offline, SyncRankRoles cannot proceed.");
                 return;
             }
 
-            foreach( (var discordID, var uplayID) in _data.DiscordUplay)
+            foreach( (var discordID, var uplayID) in Data.DiscordUplay)
             {
-                foreach (var guild in guilds.byID.Values)
+                foreach (var guild in Guilds.byID.Values)
                 {
                     SocketGuildUser player = guild._socket.Users.FirstOrDefault(x => x.Id == discordID);
                     if (player == null)
@@ -415,17 +408,17 @@ namespace RankBot
 
                     List<string> allRoles = player.Roles.Select(x => x.Name).ToList();
                     Rank guessedRank = Ranking.GuessRank(allRoles);
-                    Rank queriedRank = await _data.QueryRank(discordID);
+                    Rank queriedRank = await Data.QueryRank(discordID);
 
 
                     // Attempt to solve the inconsistency in the database.
                     if (queriedRank == null)
                     {
                         Console.WriteLine($"The player {player.Username} does not have a stored rank, but has a uplay ID association. Fixing.");
-                        UbisoftRank response = await uApi.QuerySingleRank(uplayID);
+                        UbisoftRank response = await UApi.QuerySingleRank(uplayID);
                         Rank actualRank = response.ToRank();
                         Console.WriteLine($"Fetched rank {actualRank.FullPrint()} for player {player.Username}");
-                        await _data.UpdateRanks(discordID, actualRank);
+                        await Data.UpdateRanks(discordID, actualRank);
                         queriedRank = actualRank;
                     }
 
@@ -439,13 +432,13 @@ namespace RankBot
                                 Console.WriteLine($"guessed: ({guessedRank.FullPrint()},{guessedRank.level}), queried: ({queriedRank.FullPrint()},{queriedRank.level})");
                             }
 
-                            UbisoftRank response = await uApi.QuerySingleRank(uplayID);
+                            UbisoftRank response = await UApi.QuerySingleRank(uplayID);
                             Rank actualRank = response.ToRank();
                             Console.WriteLine($"Fetched rank {actualRank.FullPrint()} for player {player.Username}");
 
                             if (!actualRank.Equals(queriedRank))
                             {
-                                await _data.UpdateRanks(discordID, actualRank);
+                                await Data.UpdateRanks(discordID, actualRank);
                             }
                             else
                             {
@@ -474,24 +467,24 @@ namespace RankBot
                 // TODO: Possibly erase from the DB if the user IS null.
             }
             System.Console.WriteLine($"Bootstrap: {updates} players have their roles updated, {preserved} have the same roles.");
-            roleInitComplete = true;
+            _roleInitComplete = true;
         }
 
         public async Task<bool> UpdateOne(ulong discordID)
         {
             // Ignore everything until the API connection to all guilds is ready.
-            if (guilds == null || !roleInitComplete || !uApi.Online)
+            if (Guilds == null || !_roleInitComplete || !UApi.Online)
             {
                 return false;
             }
 
 
-            if (! await _data.UserTracked(discordID))
+            if (! await Data.UserTracked(discordID))
             {
                 return false;
             }
 
-            string uplayId = await _data.QueryMapping(discordID);
+            string uplayId = await Data.QueryMapping(discordID);
             await RefreshRank(discordID, uplayId);
             return true;
         }
@@ -500,7 +493,7 @@ namespace RankBot
         {
 
             // Ignore everything until the API connection to all guilds is ready.
-            if (guilds == null || !roleInitComplete || !uApi.Online)
+            if (Guilds == null || !_roleInitComplete || !UApi.Online)
             {
                 return;
             }
@@ -508,7 +501,7 @@ namespace RankBot
             System.Console.WriteLine("Updating player ranks (period:" + Settings.updatePeriod.ToString() + ").");
 
             // We create a copy of the discord -- uplay mapping so that we can iterate without holding the lock.
-            Dictionary<ulong, string> duplicateDiscordUplay = await _data.DuplicateUplayMapping();
+            Dictionary<ulong, string> duplicateDiscordUplay = await Data.DuplicateUplayMapping();
             int count = 0;
 
             foreach (KeyValuePair<ulong, string> entry in duplicateDiscordUplay)
@@ -524,11 +517,7 @@ namespace RankBot
 
         public async Task PerformBackup()
         {
-            BackupData backup = await _data.PrepareBackup();
-            if (Settings.UsingExtensionBanTracking)
-            {
-                bt.ExtendBackup(backup);
-            }
+            BackupData backup = await Data.PrepareBackup();
 
             // We have the backup data now, we can continue without the lock, as long as this was indeed a deep copy.
             Console.WriteLine($"Saving backup data to {Settings.backupFile}.");
@@ -548,11 +537,11 @@ namespace RankBot
 
         public string get_botStatus()
         {
-            return botStatus;
+            return _botStatus;
         }
         public void set_botStatus(string txt)
         {
-            botStatus = txt;
+            _botStatus = txt;
         }
 
 
@@ -569,8 +558,8 @@ namespace RankBot
         }
         public async Task RegisterCommandsAsync()
         {
-            client.MessageReceived += HandleCommandAsync;
-            await commands.AddModulesAsync(Assembly.GetEntryAssembly(), services);
+            _client.MessageReceived += HandleCommandAsync;
+            await _commands.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
         }
 
         private async Task HandleCommandAsync(SocketMessage arg)
@@ -585,13 +574,13 @@ namespace RankBot
             if (contextChannel is SocketTextChannel guildChannel)
             {
                 ulong gid = guildChannel.Guild.Id;
-                if (!guilds.byID.ContainsKey(gid))
+                if (!Guilds.byID.ContainsKey(gid))
                 {
                     // Console.WriteLine($"The service guilds do not contain the guild {gid}"); // DEBUG
                     return;
                 }
 
-                if (!guilds.byID[gid].Config.commandChannels.Contains(message.Channel.Name))
+                if (!Guilds.byID[gid].Config.commandChannels.Contains(message.Channel.Name))
                 {
                     // Console.WriteLine($"The message comes from a channel {message.Channel.Name}, which is not monitored."); // DEBUG
                     return; // Ignore all channels except one the allowed command channels.
@@ -599,10 +588,10 @@ namespace RankBot
 
                 int argPos = 0;
 
-                if (message.HasStringPrefix("!", ref argPos) || message.HasMentionPrefix(client.CurrentUser, ref argPos))
+                if (message.HasStringPrefix("!", ref argPos) || message.HasMentionPrefix(_client.CurrentUser, ref argPos))
                 {
-                    var context = new SocketCommandContext(client, message);
-                    var result = await commands.ExecuteAsync(context, argPos, services);
+                    var context = new SocketCommandContext(_client, message);
+                    var result = await _commands.ExecuteAsync(context, argPos, _services);
                     if (!result.IsSuccess)
                         Console.WriteLine(result.ErrorReason);
                 }
@@ -617,34 +606,34 @@ namespace RankBot
         /// <returns></returns>
         public async Task TestBotAsync()
         {
-            client = new DiscordSocketClient();
-            commands = new CommandService();
-            services = new ServiceCollection()
-                .AddSingleton(client)
-                .AddSingleton(commands)
+            _client = new DiscordSocketClient();
+            _commands = new CommandService();
+            _services = new ServiceCollection()
+                .AddSingleton(_client)
+                .AddSingleton(_commands)
                 .BuildServiceProvider();
-            client.Log += Log;
+            _client.Log += Log;
             await RegisterCommandsAsync();
-            await client.LoginAsync(Discord.TokenType.Bot, Secret.botToken);
-            await client.StartAsync();
-            await client.SetGameAsync(get_botStatus());
+            await _client.LoginAsync(Discord.TokenType.Bot, Secret.botToken);
+            await _client.StartAsync();
+            await _client.SetGameAsync(get_botStatus());
             // We wish to set the bot's resident Discord guild and initialize.
             // This is however only possible when the client is ready.
             // See https://docs.stillu.cc/guides/concepts/events.html for further documentation.
 
-            client.Ready += async () =>
+            _client.Ready += async () =>
             {
                 if (_primary == null)
                 {
-                    _primary = new PrimaryDiscordGuild(client);
+                    _primary = new PrimaryDiscordGuild(_client);
                     _primaryServerLoaded = true;
                 }
-                if (!constructionComplete)
+                if (!ConstructionComplete)
                 {
                     await DelayedConstruction();
                     if (Settings.UsingExtensionRoleHighlights)
                     {
-                        client.MessageReceived += _highlighter.Filter;
+                        _client.MessageReceived += _highlighter.Filter;
                     }
                 }
                 return;
@@ -653,11 +642,11 @@ namespace RankBot
 
             while (true)
             {
-                if (constructionComplete)
+                if (ConstructionComplete)
                 {
                     Console.WriteLine("Server list:");
                     int i = 0;
-                    foreach (DiscordGuild dg in guilds.byID.Values)
+                    foreach (DiscordGuild dg in Guilds.byID.Values)
                     {
                         Console.WriteLine($"{i++}: {dg.GetName()}");
                     }
@@ -669,42 +658,42 @@ namespace RankBot
         public async Task RunBotAsync()
         {
 
-            uApi = new UbisoftApi();
-            await uApi.DelayedInit();
+            UApi = new UbisoftApi();
+            await UApi.DelayedInit();
             Timer banTimer = null;
 
             var config = new DiscordSocketConfig();
             config.GatewayIntents = GatewayIntents.All;
 
-            client = new DiscordSocketClient(config);
+            _client = new DiscordSocketClient(config);
 
             // client = new DiscordSocketClient();
-            commands = new CommandService();
-            services = new ServiceCollection()
-                .AddSingleton(client)
-                .AddSingleton(commands)
+            _commands = new CommandService();
+            _services = new ServiceCollection()
+                .AddSingleton(_client)
+                .AddSingleton(_commands)
                 .BuildServiceProvider();
-            client.Log += Log;
+            _client.Log += Log;
             await RegisterCommandsAsync();
-            await client.LoginAsync(Discord.TokenType.Bot, Secret.botToken);
-            await client.StartAsync();
-            await client.SetGameAsync(get_botStatus());
+            await _client.LoginAsync(Discord.TokenType.Bot, Secret.botToken);
+            await _client.StartAsync();
+            await _client.SetGameAsync(get_botStatus());
             // We wish to set the bot's resident Discord guild and initialize.
             // This is however only possible when the client is ready.
             // See https://docs.stillu.cc/guides/concepts/events.html for further documentation.
 
-            client.Ready += async () =>
+            _client.Ready += async () =>
             {
                 if (_primary == null)
                 {
-                    _primary = new PrimaryDiscordGuild(client);
+                    _primary = new PrimaryDiscordGuild(_client);
                     _primaryServerLoaded = true;
                 }
-                if (!constructionComplete)
+                if (!ConstructionComplete)
                 {
                     await DelayedConstruction();
                 }
-                if (!roleInitComplete)
+                if (!_roleInitComplete)
                 {
                     // _ = SyncRankRolesAndData();
                 }

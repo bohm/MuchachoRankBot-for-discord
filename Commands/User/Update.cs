@@ -21,11 +21,11 @@ namespace RankBot.Commands.User
             var author = (SocketGuildUser)command.User;
 
             // Log the command.
-            var sourceGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+            var sourceGuild = Bot.Instance.Guilds.byID[author.Guild.Id];
             _ = LogCommand(sourceGuild, author, "/update");
             await command.DeferAsync(ephemeral: true);
 
-            string authorR6TabId = await Bot.Instance._data.QueryMapping(author.Id);
+            string authorR6TabId = await Bot.Instance.Data.QueryMapping(author.Id);
 
             if (authorR6TabId == null)
             {
@@ -38,7 +38,7 @@ namespace RankBot.Commands.User
 
             if (ret)
             {
-                Rank r = await Bot.Instance._data.QueryRank(author.Id);
+                Rank r = await Bot.Instance.Data.QueryRank(author.Id);
                 // Print user's rank too.
                 if (r.met == Metal.Undefined)
                 {

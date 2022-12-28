@@ -364,19 +364,19 @@ namespace RankBot.Extensions
             // The command actually checks this first, but let's also check this for the sake of consistency.
             if (tenOrTwenty.Length % groupSize != 0)
             {
-                var responseChannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+                var responseChannel = Bot.Instance.Guilds.byID[sourceGuild].TextChannelById(TargetChannel);
                 await responseChannel.SendMessageAsync("Group size is not divisible by list length.");
                 return;
             }
 
             int players = tenOrTwenty.Length;
 
-            if (!bot.guilds.byID.ContainsKey(sourceGuild))
+            if (!bot.Guilds.byID.ContainsKey(sourceGuild))
             {
                 throw new GuildStructureException("Something went wrong -- the selected guild ID was not found before matchmaking.");
             }
 
-            DiscordGuild guild = bot.guilds.byID[sourceGuild];
+            DiscordGuild guild = bot.Guilds.byID[sourceGuild];
             foreach (string username in tenOrTwenty)
             {
                 // First, we now accept user ID (the long ones) instead of nicknames, too.
@@ -409,7 +409,7 @@ namespace RankBot.Extensions
 
                 if (person == null)
                 {
-                    var responseChannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+                    var responseChannel = Bot.Instance.Guilds.byID[sourceGuild].TextChannelById(TargetChannel);
                     await responseChannel.SendMessageAsync($"The name \"{humanReadableUsername}\" not matched to a Discord user.");
                     return;
                 }
@@ -421,7 +421,7 @@ namespace RankBot.Extensions
 
                 if (bot.MmrManager.GetMmr(person.Id) == -1)
                 {
-                    var responseChannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+                    var responseChannel = Bot.Instance.Guilds.byID[sourceGuild].TextChannelById(TargetChannel);
                     await responseChannel.SendMessageAsync($"The name \"{humanReadableUsername}\" does not seem to have a lifetime MMR.");
                     return;
                 }
@@ -440,14 +440,14 @@ namespace RankBot.Extensions
                 }
                 catch (Exception)
                 {
-                    var responseChannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+                    var responseChannel = Bot.Instance.Guilds.byID[sourceGuild].TextChannelById(TargetChannel);
                     await responseChannel.SendMessageAsync($"Error while fetching r6.tracker.network data for {player}.");
                     return;
                 }
 
                 if (mmr < 0)
                 {
-                    var responseChannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+                    var responseChannel = Bot.Instance.Guilds.byID[sourceGuild].TextChannelById(TargetChannel);
                     await responseChannel.SendMessageAsync($"Error while fetching r6.tracker.network data for {player}.");
                     return;
                 }
@@ -464,7 +464,7 @@ namespace RankBot.Extensions
 
             List<List<int>> bestPartitions = eb.StoredBest;
 
-            var rchannel = Bot.Instance.guilds.byID[sourceGuild].TextChannelById(TargetChannel);
+            var rchannel = Bot.Instance.Guilds.byID[sourceGuild].TextChannelById(TargetChannel);
             await rchannel.SendMessageAsync("Best choice:");
             int teamId = 0;
             foreach(var team in bestPartitions)

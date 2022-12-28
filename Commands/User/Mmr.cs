@@ -25,11 +25,11 @@ namespace RankBot.Commands.User
         {
             var author = (SocketGuildUser)command.User;
 
-            DiscordGuild contextGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+            DiscordGuild contextGuild = Bot.Instance.Guilds.byID[author.Guild.Id];
 
             await command.DeferAsync(ephemeral: true);
 
-            if (!Bot.Instance.uApi.Online)
+            if (!Bot.Instance.UApi.Online)
             {
                 const string errorMsg = "Ubisoft API aktualne neni dostupne, nemuzeme prikaz dokoncit.";
                 await command.ModifyOriginalResponseAsync(
@@ -55,7 +55,7 @@ namespace RankBot.Commands.User
                 return;
             }
 
-            if (!Bot.Instance._data.DiscordUplay.ContainsKey(targetUser.Id))
+            if (!Bot.Instance.Data.DiscordUplay.ContainsKey(targetUser.Id))
             {
                 await command.ModifyOriginalResponseAsync(
                     resp => resp.Content = $"Discord uzivatel {targetUser.Username} nenalezen v databazi tracku.");
@@ -63,11 +63,11 @@ namespace RankBot.Commands.User
             }
             else
             {
-                string uplayId = Bot.Instance._data.DiscordUplay[target.Id];
+                string uplayId = Bot.Instance.Data.DiscordUplay[target.Id];
                 int mmr = -1;
                 try
                 {
-                    mmr = await Bot.Instance.uApi.GetMMR(uplayId);
+                    mmr = await Bot.Instance.UApi.GetMMR(uplayId);
                     if (mmr < 0)
                     {
                         await command.ModifyOriginalResponseAsync(

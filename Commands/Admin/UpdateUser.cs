@@ -19,7 +19,7 @@ namespace RankBot.Commands.Admin
                 return;
             }
 
-            DiscordGuild contextGuild = Bot.Instance.guilds.byID[Context.Guild.Id];
+            DiscordGuild contextGuild = Bot.Instance.Guilds.byID[Context.Guild.Id];
             Discord.WebSocket.SocketGuildUser target = contextGuild.GetSingleUser(discordUsername);
 
             if (target == null)
@@ -30,7 +30,7 @@ namespace RankBot.Commands.Admin
 
             try
             {
-                if (!await Bot.Instance._data.UserTracked(target.Id))
+                if (!await Bot.Instance.Data.UserTracked(target.Id))
                 {
                     await ReplyAsync($"User {target.Username} not tracked.");
                     return;
@@ -43,7 +43,7 @@ namespace RankBot.Commands.Admin
                 {
                     await ReplyAsync($"User {target.Username} updated.");
                     // Print user's rank too.
-                    Rank r = await Bot.Instance._data.QueryRank(target.Id);
+                    Rank r = await Bot.Instance.Data.QueryRank(target.Id);
                     if (r.Digits())
                     {
                         await ReplyAsync($"We see {target.Username}'s rank as {r.FullPrint()}");

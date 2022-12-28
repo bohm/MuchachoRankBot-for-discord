@@ -40,7 +40,10 @@ namespace RankBot
 
         public static readonly bool UsingExtensionMatchmaking = true;
         public static readonly bool UsingExtensionRoleHighlights = true;
-        public static readonly bool UsingExtensionBanTracking = false;
+
+        // This extension awards "Active Ranks" in addition to normal ranks.
+        // The idea is to slightly reward activity on the guild by awarding an extra role.
+        public static readonly bool UsingExtensionActiveUsers = true;
 
         /// <summary>
         /// Whether we should regenerate slash commands or not. Needs to be true for the first run

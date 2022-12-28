@@ -28,7 +28,7 @@ namespace RankBot.Commands.User
             }
 
             var author = (SocketGuildUser)command.User;
-            DiscordGuild contextGuild = Bot.Instance.guilds.byID[author.Guild.Id];
+            DiscordGuild contextGuild = Bot.Instance.Guilds.byID[author.Guild.Id];
             await command.DeferAsync(ephemeral: true);
 
             var targetUser = (SocketGuildUser)command.Data.Options.First(x => x.Name == "user").Value;

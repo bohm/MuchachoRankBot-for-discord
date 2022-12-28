@@ -12,11 +12,11 @@ namespace RankBot
         {
             long absentUsers = 0;
             Console.WriteLine("Beginning cleanup.");
-            var databaseCopy = await _data.PrepareBackup();
+            var databaseCopy = await Data.PrepareBackup();
             foreach (var discordId in databaseCopy.discordRanksDict.Keys)
             {
                 bool userPresent = false;
-                foreach (var guild in guilds.byID.Values)
+                foreach (var guild in Guilds.byID.Values)
                 {
                     var user = guild.GetSingleUser(discordId);
                     if (user != null)

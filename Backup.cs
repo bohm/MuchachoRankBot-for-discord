@@ -92,14 +92,14 @@ namespace RankBot
         }
     }
 
-    class BackupData
+    public class BackupData
     {
         // The internal mapping between Discord names and R6TabIDs which we use to track ranks.
         public Dictionary<ulong, string> discordUplayDict;
         // The internal data about ranks of Discord users.
         public Dictionary<ulong, Rank> discordRanksDict;
         public HashSet<ulong> quietSet;
-        public Extensions.BanDataStructure bds;
+
 
         public static BackupData RestoreFromFile(string fileName)
         {

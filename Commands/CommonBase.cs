@@ -17,7 +17,7 @@ namespace RankBot
         /// <returns>true if instance exists, false otherwise.</returns>
         protected async Task<bool> InstanceCheck()
         {
-            if (Bot.Instance == null || !Bot.Instance.constructionComplete)
+            if (Bot.Instance == null || !Bot.Instance.ConstructionComplete)
             {
                 await ReplyAsync("RankBot is not yet ready to process commands.");
 
@@ -29,7 +29,7 @@ namespace RankBot
 
         protected async Task<bool> InstanceCheck(SocketSlashCommand command)
         {
-            if (Bot.Instance == null || !Bot.Instance.constructionComplete)
+            if (Bot.Instance == null || !Bot.Instance.ConstructionComplete)
             {
                 await command.RespondAsync("The Discord server is not yet ready for commands.", ephemeral: true);
                 return false;
