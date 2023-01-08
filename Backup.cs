@@ -14,7 +14,7 @@ namespace RankBot
         public List<string> commandChannels;
         public List<string> roleHighlightChannels;
     }
-    class BackupGuildConfiguration
+    public class BackupGuildConfiguration
     {
         public List<SingleGuildConfig> guildList = new List<SingleGuildConfig>();
 
@@ -97,8 +97,9 @@ namespace RankBot
         // The internal mapping between Discord names and R6TabIDs which we use to track ranks.
         public Dictionary<ulong, string> discordUplayDict;
         // The internal data about ranks of Discord users.
-        public Dictionary<ulong, Rank> discordRanksDict;
-        public HashSet<ulong> quietSet;
+        public Dictionary<ulong, RankDataPointV6> DiscordRanksV6;
+        // public Dictionary<ulong, Rank> discordRanksDict;
+        // public HashSet<ulong> quietSet;
 
 
         public static BackupData RestoreFromFile(string fileName)

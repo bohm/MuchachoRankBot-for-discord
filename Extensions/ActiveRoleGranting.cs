@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 
 namespace RankBot.Extensions;
 
+/*
 public class ActiveRoleGranting
 {
     private DiscordGuild _targetGuild;
@@ -85,3 +86,4 @@ public class ActiveRoleGranting
         }
     }
 }
+*/

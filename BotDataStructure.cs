@@ -14,8 +14,10 @@ namespace RankBot
         // The internal mapping between Discord names and R6TabIDs which we use to track ranks. 
         public Dictionary<ulong, string> DiscordUplay;
         // The internal data about ranks of Discord users.
-        public Dictionary<ulong, Rank> DiscordRanks;
-        public HashSet<ulong> QuietPlayers;
+        // public Dictionary<ulong, Rank> DiscordRanks;
+        // public HashSet<ulong> QuietPlayers;
+
+        private Dictionary<ulong, RankDataPointV6> _discordRanks;
 
         // The semaphore (in fact a mutex) that blocks the access to DoNotTrack and DiscordUplay
         private readonly SemaphoreSlim Access;
@@ -24,16 +26,21 @@ namespace RankBot
         {
             Access = new SemaphoreSlim(1, 1);
             DiscordUplay = new Dictionary<ulong, string>();
-            QuietPlayers = new HashSet<ulong>();
-            DiscordRanks = new Dictionary<ulong, Rank>();
+            // QuietPlayers = new HashSet<ulong>();
+            _discordRanks = new Dictionary<ulong, RankDataPointV6>();
         }
 
         public BotDataStructure(BackupData backup)
         {
             Access = new SemaphoreSlim(1, 1);
             DiscordUplay = backup.discordUplayDict;
-            QuietPlayers = backup.quietSet;
-            DiscordRanks = backup.discordRanksDict;
+            // QuietPlayers = backup.quietSet;
+            _discordRanks = backup.DiscordRanksV6;
+
+            if (_discordRanks is null)
+            {
+                _discordRanks = new Dictionary<ulong, RankDataPointV6>();
+            }
         }
 
         /// <summary>
@@ -45,19 +52,23 @@ namespace RankBot
         {
             await Access.WaitAsync();
             BackupData data = new BackupData();
-            data.discordRanksDict = new Dictionary<ulong, Rank>(DiscordRanks);
+            // data.discordRanksDict = new Dictionary<ulong, Rank>(DiscordRanks);
             data.discordUplayDict = new Dictionary<ulong, string>(DiscordUplay);
-            data.quietSet = new HashSet<ulong>(QuietPlayers);
+            data.DiscordRanksV6 = new Dictionary<ulong, RankDataPointV6>(_discordRanks);
+            // data.quietSet = new HashSet<ulong>(QuietPlayers);
             Access.Release();
             return data;
         }
 
         public async Task<bool> QueryQuietness(ulong discordUserID)
         {
-            await Access.WaitAsync();
+            // Currently not implemented.
+            return false;
+
+            /* await Access.WaitAsync();
             bool ret = QuietPlayers.Contains(discordUserID);
             Access.Release();
-            return ret;
+            return ret; */
         }
 
 
@@ -93,35 +104,38 @@ namespace RankBot
             Access.Release();
         }
 
-        public async Task<bool> TrackingContains(ulong discordID)
+        public async Task<bool> RanksContainUser(ulong discordID)
         {
             await Access.WaitAsync();
-            bool ret = DiscordRanks.ContainsKey(discordID);
+            bool ret = _discordRanks.ContainsKey(discordID);
             Access.Release();
             return ret;
         }
 
-        public async Task<Rank> QueryRank(ulong DiscordID)
+        public async Task<RankDataPointV6> QueryRankInfo(ulong discordId)
         {
             await Access.WaitAsync();
-            Rank r;
-            DiscordRanks.TryGetValue(DiscordID, out r);
+            RankDataPointV6 query;
+            _discordRanks.TryGetValue(discordId, out query);
             Access.Release();
-            return r;
+            return query;
         }
-        /// <summary>
-        /// Inserts into the DiscordRanks internal dictionary of mapping from
-        /// ids to ranks. Only call when having access to the database.
-        /// </summary>
-        /// <param name="discordID"></param>
-        /// <param name="r"></param>
-        /// <returns></returns>
-        public async Task InsertIntoRanks(ulong discordID, Rank r)
+
+        public async Task<MetalV6> QueryMetal(ulong discordId)
         {
-            // await Access.WaitAsync();
-            DiscordRanks[discordID] = r;
-            // Access.Release();
+            MetalV6 ret = MetalV6.Undefined;
+            RankDataPointV6 query;
+            await Access.WaitAsync();
+
+            if (_discordRanks.TryGetValue(discordId, out query))
+            {
+                ret = query.ToMetal();
+            }
+
+            Access.Release();
+            return ret;
         }
+
 
         public async Task RemoveFromDatabases(ulong discordId)
         {
@@ -132,42 +146,53 @@ namespace RankBot
                 DiscordUplay.Remove(discordId);
             }
 
-            if (DiscordRanks.ContainsKey(discordId))
+            if (_discordRanks.ContainsKey(discordId))
             {
-                DiscordRanks.Remove(discordId);
+                _discordRanks.Remove(discordId);
             }
 
+            /*
             if (QuietPlayers.Contains(discordId))
             {
                 QuietPlayers.Remove(discordId);
             }
+            */
 
             Access.Release();
         }
         public async Task ShushPlayer(ulong discordId)
         {
+            // Currently not implemented.
+            return;
+            /*
             await Access.WaitAsync();
             if (!QuietPlayers.Contains(discordId))
             {
                 QuietPlayers.Add(discordId);
             }
             Access.Release();
+            */
         }
 
         public async Task MakePlayerLoud(ulong discordId)
         {
+            // Currently not implemented.
+            return;
+
+            /*
             await Access.WaitAsync();
             if (QuietPlayers.Contains(discordId))
             {
                 QuietPlayers.Remove(discordId);
             }
             Access.Release();
+            */
         }
 
-        internal async Task UpdateRanks(ulong discordID, Rank fetchedRank)
+        internal async Task UpdateRanks(ulong discordID, RankDataPointV6 fetchedRank)
         {
             await Access.WaitAsync();
-            DiscordRanks[discordID] = fetchedRank;
+            _discordRanks[discordID] = fetchedRank;
             Access.Release();
         }
 
@@ -177,6 +202,16 @@ namespace RankBot
             Dictionary<ulong, string> copy = new Dictionary<ulong, string>(DiscordUplay);
             Access.Release();
             return copy;
+        }
+
+        public int DiscordRankCount()
+        {
+            return _discordRanks.Count;
+        }
+
+        public int DiscordUplayCount()
+        {
+            return DiscordUplay.Count;
         }
     }
 }

@@ -26,8 +26,14 @@ namespace RankBot
 
         public const string botStatus = "Pro info: /prikazy";
 
+        // The identifier of an app that the bot claims to be towards the public Ubisoft API.
+        // The API is available to all registered users, but currently there is no way to register and get your own AppId.
+        // Hence, we use the following code, borrowing from the related project https://github.com/danielwerg/r6api.js
+        public const string UbisoftAppId = "e3d5ea9e-50bd-43b7-88bf-39794f4e3d40";
+
+
         // A global switch to turn off API synchronization, for example when the API changes.
-        public static readonly bool ApiOfflineMode = true;
+        public static readonly bool ApiOfflineMode = false;
 
         // Enable or disable the logging mechanism.
         public static readonly bool Logging = true;

@@ -2,38 +2,49 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace RankBot
-{
-    /// <summary>
-    /// One data point stored in the main rank database about a user.
-    /// It is essentially enough to store the MMR and the number of matches,
-    /// but we also represent the rank explicitly, not to convert it all the time.
-    /// </summary>
-    class RankDataPoint
-    {
-        int MMR = 0;
-        int matchesThisSeason = 0;
-        Rank deducedRank;
+namespace RankBot;
 
-        public RankDataPoint(int new_mmr, int matches)
+/// <summary>
+/// One data point stored in the main rank database about a user.
+/// It is essentially enough to store the MMR and the number of matches,
+/// but we also represent the rank explicitly, not to convert it all the time.
+/// </summary>
+public record RankDataPointV6
+{
+    public bool playedAnyMatches = false;
+    public int RankPoints = 0;
+
+    public RankDataPointV6(bool playedMatches, int rankPoints)
+    {
+        RankPoints = rankPoints;
+        playedAnyMatches = playedMatches;
+    }
+
+    public RankDataPointV6()
+    {
+    }
+
+    public RankDataPointV6(UbisoftFullBoard fetchedBoard)
+    {
+        if (fetchedBoard.profile.rank != 0)
         {
-            MMR = new_mmr; matchesThisSeason = matches;
-            deducedRank = SpecialRanks.Undefined;
-            _ = DeduceRankData();
+            playedAnyMatches = true;
+            RankPoints = fetchedBoard.profile.rank_points;
         }
-        /// <summary>
-        /// Computes the rank based on the internal mmr and played matches this season.
-        /// <returns>True if deduced data changed, false if they stayed the same.</returns>
-        /// </summary>
-        public bool DeduceRankData()
+    }
+
+    public MetalV6 ToMetal()
+    {
+        if (!playedAnyMatches)
         {
-            Rank newrank = Ranking.RankComputation(MMR, matchesThisSeason);
-            if (newrank != deducedRank)
-            {
-                deducedRank = newrank;
-                return true;
-            }
-            return false;
+            return MetalV6.Rankless;
         }
+
+        return RankingV6.RankPointsToMetal(RankPoints);
+    }
+
+    public override string ToString()
+    {
+        return RankingV6.MetalPrint(ToMetal());
     }
 }

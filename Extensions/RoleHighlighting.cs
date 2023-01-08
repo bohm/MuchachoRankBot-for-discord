@@ -94,10 +94,10 @@ namespace RankBot.Extensions
             _dg = dg;
             _roleNameToID = new Dictionary<string, ulong>();
             // Initialize internal list of roles.
-            _upperCaseLoudDigitRoles = new List<string>(Ranking.LoudDigitRoles);
-            _upperCaseLoudMetalRoles = new List<string>(Ranking.LoudMetalRoles);
-            _lowerCaseLoudDigitRoles = RoleHighlighting.ListToLowerCase(Ranking.LoudDigitRoles);
-            _lowerCaseLoudMetalRoles = RoleHighlighting.ListToLowerCase(Ranking.LoudMetalRoles);
+            _upperCaseLoudDigitRoles = new List<string>(RankingV5.LoudDigitRoles);
+            _upperCaseLoudMetalRoles = new List<string>(RankingV5.LoudMetalRoles);
+            _lowerCaseLoudDigitRoles = RoleHighlighting.ListToLowerCase(RankingV5.LoudDigitRoles);
+            _lowerCaseLoudMetalRoles = RoleHighlighting.ListToLowerCase(RankingV5.LoudMetalRoles);
 
             // Build the regex matching string from the roleset in Settings.
             StringBuilder sb = new StringBuilder();
@@ -108,7 +108,7 @@ namespace RankBot.Extensions
 
 
             // Populate _roleNameToID.
-            foreach (string name in Ranking.LoudMetalRoles)
+            foreach (string name in RankingV5.LoudMetalRoles)
             {
                 SocketRole role = _dg._socket.Roles.FirstOrDefault(x => x.Name == name);
                 if (role == null)
@@ -122,7 +122,7 @@ namespace RankBot.Extensions
                 }
             }
 
-            foreach (string name in Ranking.LoudDigitRoles)
+            foreach (string name in RankingV5.LoudDigitRoles)
             {
                 SocketRole role = _dg._socket.Roles.FirstOrDefault(x => x.Name == name);
                 if (role == null)

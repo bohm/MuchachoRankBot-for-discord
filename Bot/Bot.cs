@@ -122,9 +122,11 @@ namespace RankBot
             BackupData recoverData = await RestoreDataStructures();
             Data = new BotDataStructure(recoverData);
 
-            Console.WriteLine("Loaded " + Data.DiscordUplay.Count + " discord -- uplay connections.");
-            Console.WriteLine("Loaded " + Data.QuietPlayers.Count + " players who wish not to be pinged.");
-            Console.WriteLine("Loaded " + Data.DiscordRanks.Count + " current player ranks.");
+            Console.WriteLine($"Loaded {Data.DiscordUplayCount()} discord -- uplay connections.");
+            Console.WriteLine($"Loaded {Data.DiscordRankCount()} current player ranks.");
+
+            // Console.WriteLine("Loaded " + Data.QuietPlayers.Count + " players who wish not to be pinged.");
+            // Console.WriteLine("Loaded " + Data.DiscordRanks.Count + " current player ranks.");
 
             MmrManager = new LifetimeMmr();
             await MmrManager.DelayedInit(_primary);
@@ -134,8 +136,10 @@ namespace RankBot
 
         public async Task LoudenUserAndAddRoles(ulong discordId)
         {
+            // Currently not implemented.
+            /*
             await Data.MakePlayerLoud(discordId);
-            Rank r = await Data.QueryRank(discordId);
+            Rank r = await Data.QueryRankInfo(discordId);
             foreach (DiscordGuild g in Guilds.byID.Values)
             {
                 if (g.IsGuildMember(discordId))
@@ -144,10 +148,13 @@ namespace RankBot
                     await g.AddLoudRoles(user, r);
                 }
             }
+            */
         }
 
         public async Task QuietenUserAndTakeRoles(ulong discordId)
         {
+            // Currently not implemented.
+            /*
             await Data.ShushPlayer(discordId);
             foreach (DiscordGuild g in Guilds.byID.Values)
             {
@@ -157,6 +164,7 @@ namespace RankBot
                     await g.RemoveLoudRoles(user);
                 }
             }
+            */
         }
 
 
@@ -304,7 +312,7 @@ namespace RankBot
             }
         }
 
-        public async Task UpdateRoles(ulong discordID, Rank newRank)
+        public async Task UpdateRoles(ulong discordID, RankDataPointV6 newRank)
         {
             // Ignore everything until dwrap.ResidentGuild is set.
             if (!ConstructionComplete)
@@ -317,18 +325,18 @@ namespace RankBot
                 return;
             }
 
-            bool userDoNotDisturb = await Data.QueryQuietness(discordID);
+            // bool userDoNotDisturb = await Data.QueryQuietness(discordID);
             foreach (DiscordGuild guild in Guilds.byID.Values)
             {
                 if (guild.IsGuildMember(discordID))
                 {
-                    await guild.UpdateRoles(discordID, newRank, userDoNotDisturb);
+                    await guild.UpdateRoles(discordID, newRank.ToMetal());
                 }
             }
         }
 
         // Call RefreshRank() only when you hold the mutex to the internal dictionaries.
-        private async Task RefreshRank(ulong discordId, string r6TabId)
+        private async Task RefreshRank(ulong discordId, string ubisoftId)
         {
             if (!UApi.Online)
             {
@@ -339,30 +347,34 @@ namespace RankBot
             try
             {
 
-                Rank fetchedRank = await UApi.GetRank(r6TabId);
-
+                UbisoftFullBoard profile = await UApi.QueryRankPoints(ubisoftId);
+                RankDataPointV6 fetchedRank = new RankDataPointV6(profile);
                 bool updateRequired = true;
-                if (await Data.TrackingContains(discordId))
+                if (await Data.RanksContainUser(discordId))
                 {
-                    Rank curRank = await Data.QueryRank(discordId);
-                    if (curRank.Equals(fetchedRank))
+                    RankDataPointV6 storedRank = await Data.QueryRankInfo(discordId);
+                    MetalV6 fetchedMetal = fetchedRank.ToMetal();
+                    MetalV6 storedMetal = storedRank.ToMetal();
+                    if (fetchedMetal != storedMetal)
                     {
                         updateRequired = false;
                     }
                     else
                     {
-                        Console.WriteLine("The fetched rank and the stored rank disagree for the user " + discordId);
-                        Console.WriteLine($"The fetched rank equals {fetchedRank} and the stored rank is {curRank}.");
+                        Console.WriteLine($"The fetched metal and the stored metal disagree for the user {discordId}");
+                        Console.WriteLine($"The fetched rank equals {RankingV6.MetalPrint(fetchedMetal)} and the stored rank is {RankingV6.MetalPrint(storedMetal)}.");
                     }
                 }
                 else
                 {
-                    Console.WriteLine("The user with DiscordID " + discordId + " is not yet in the database of ranks.");
+                    Console.WriteLine($"The user with DiscordID {discordId} is not yet in the database of ranks.");
                 }
+
+                await Data.UpdateRanks(discordId, fetchedRank);
+
 
                 if (updateRequired)
                 {
-                    await Data.UpdateRanks(discordId, fetchedRank);
                     await UpdateRoles(discordId, fetchedRank);
                 }
                 else
@@ -395,15 +407,54 @@ namespace RankBot
                 Console.WriteLine("Ubisoft API is offline, SyncRankRoles cannot proceed.");
                 return;
             }
+
+            foreach (var (discordId, uplayId) in Data.DiscordUplay)
+            {
+                foreach (var guild in Guilds.byID.Values)
+                {
+                    SocketGuildUser player = guild._socket.Users.FirstOrDefault(x => x.Id == discordId);
+                    if (player == null)
+                    {
+                        continue;
+                    }
+
+                    /*
+                    List<string> allRoles = player.Roles.Select(x => x.Name).ToList();
+                    Rank guessedRank = Ranking.GuessRank(allRoles);
+                    */
+                    RankDataPointV6 queriedRank = await Data.QueryRankInfo(discordId);
+
+
+                    // Attempt to solve the inconsistency in the database.
+                    if (queriedRank == null)
+                    {
+                        Console.WriteLine($"The player {player.Username} does not have a stored rank, but has a uplay ID association. Fixing.");
+                        UbisoftFullBoard profile = await UApi.QueryRankPoints(uplayId);
+                        RankDataPointV6 actualRank = new RankDataPointV6(profile);
+
+                        Console.WriteLine($"Fetched rank {actualRank.ToString()} for player {player.Username}");
+                        await Data.UpdateRanks(discordId, actualRank);
+                        queriedRank = actualRank;
+                    }
+
+                    /*
+                    if (!guessedRank.Equals(queriedRank))
+                    {
+                        try
+                        {
+                            Console.WriteLine($"Guessed and queried rank of user {player.Username} on guild {guild.GetName()} do not match.");
+                            if (queriedRank != null && guessedRank != null)
+                            {
+                                Console.WriteLine($"guessed: ({guessedRank.FullPrint()},{guessedRank.level}), queried: ({queriedRank.FullPrint()},{queriedRank.level})");
                             }
 
-                            UbisoftRank response = await UApi.QuerySingleRank(uplayID);
+                            UbisoftRank response = await UApi.QuerySingleRank(uplayId);
                             Rank actualRank = response.ToRank();
                             Console.WriteLine($"Fetched rank {actualRank.FullPrint()} for player {player.Username}");
 
                             if (!actualRank.Equals(queriedRank))
                             {
-                                await Data.UpdateRanks(discordID, actualRank);
+                                await Data.UpdateRanks(discordId, actualRank);
                             }
                             else
                             {
@@ -412,7 +463,7 @@ namespace RankBot
 
                             if (!actualRank.Equals(guessedRank))
                             {
-                                await UpdateRoles(discordID, actualRank);
+                                await UpdateRoles(discordId, actualRank);
                             }
                             {
                                 Console.WriteLine("Guessed rank was correct, no need to update roles.");
@@ -428,6 +479,7 @@ namespace RankBot
                     {
                         preserved++;
                     }
+                    */
                 }
                 // TODO: Possibly erase from the DB if the user IS null.
             }
@@ -460,6 +512,7 @@ namespace RankBot
             // Ignore everything until the API connection to all guilds is ready.
             if (Guilds == null || !_roleInitComplete || !UApi.Online)
             {
+                Console.WriteLine($"The system is not fully operational: {Guilds == null}, {_roleInitComplete}, {UApi.Online}");
                 return;
             }
 
@@ -660,7 +713,7 @@ namespace RankBot
                 }
                 if (!_roleInitComplete)
                 {
-                    // _ = SyncRankRolesAndData();
+                    _ = SyncRankRolesAndData();
                 }
 
                 return;
@@ -683,10 +736,10 @@ namespace RankBot
 
             // Testing new API.
 
+            // await UbisoftApiTesting.RunTests();
             //UbisoftApi uApi = new UbisoftApi();
             //await uApi.DelayedInit();
 
-            //string orsonUplay = "93f4f20f-ac19-47fb-afe8-f36662a40b79";
             //string orsonNickname = await uApi.GetCurrentUplay(orsonUplay);
             //Console.WriteLine($"The current Uplay nickname of {orsonUplay} is {orsonNickname}. ");
             //int orsonMmr = await uApi.GetCurrentMMR(orsonUplay);
@@ -698,7 +751,6 @@ namespace RankBot
             //{
             //    Console.WriteLine($"{uplayId}: {rnk.ToRank().CompactFullPrint()}.");
             //}
-
 
             // GuildConfigTest.Run();
             // await new Bot().TestBotAsync();

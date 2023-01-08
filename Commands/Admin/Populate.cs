@@ -20,7 +20,7 @@ namespace RankBot.Commands.Admin
                 return;
             }
 
-            await RoleCreation.CreateMissingRoles(Context.Guild);
+            // await RoleCreation.CreateMissingRoles(Context.Guild);
         }
     }
 }

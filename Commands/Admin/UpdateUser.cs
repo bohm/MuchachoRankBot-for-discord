@@ -43,15 +43,8 @@ namespace RankBot.Commands.Admin
                 {
                     await ReplyAsync($"User {target.Username} updated.");
                     // Print user's rank too.
-                    Rank r = await Bot.Instance.Data.QueryRank(target.Id);
-                    if (r.Digits())
-                    {
-                        await ReplyAsync($"We see {target.Username}'s rank as {r.FullPrint()}");
-                    }
-                    else
-                    {
-                        await ReplyAsync($"We see {target.Username}'s rank as {r.CompactFullPrint()}");
-                    }
+                    RankDataPointV6 dataPoint = await Bot.Instance.Data.QueryRankInfo(target.Id);
+                    await ReplyAsync($"We see {target.Username}'s rank as {RankingV6.MetalPrint(dataPoint.ToMetal())}");
                 }
                 else
                 {

@@ -38,9 +38,10 @@ namespace RankBot.Commands.User
 
             if (ret)
             {
-                Rank r = await Bot.Instance.Data.QueryRank(author.Id);
+                RankDataPointV6 dataPoint = await Bot.Instance.Data.QueryRankInfo(author.Id);
+                MetalV6 userRole = dataPoint.ToMetal();
                 // Print user's rank too.
-                if (r.met == Metal.Undefined)
+                if (userRole == MetalV6.Undefined)
                 {
                     await command.ModifyOriginalResponseAsync(
                         resp => resp.Content = $"Aktualizace vraci neplatny rank. Asi se neco pokazilo.");
@@ -48,7 +49,7 @@ namespace RankBot.Commands.User
                 }
 
                 await command.ModifyOriginalResponseAsync(
-                    resp => resp.Content = $"Update ranku hotov, vas novy rank je {r.FullPrint()}.");
+                    resp => resp.Content = $"Update ranku hotov, vas novy rank je {RankingV6.MetalPrint(userRole)}.");
             }
             else
             {
