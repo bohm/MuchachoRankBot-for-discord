@@ -395,41 +395,6 @@ namespace RankBot
                 Console.WriteLine("Ubisoft API is offline, SyncRankRoles cannot proceed.");
                 return;
             }
-
-            foreach( (var discordID, var uplayID) in Data.DiscordUplay)
-            {
-                foreach (var guild in Guilds.byID.Values)
-                {
-                    SocketGuildUser player = guild._socket.Users.FirstOrDefault(x => x.Id == discordID);
-                    if (player == null)
-                    {
-                        continue;
-                    }
-
-                    List<string> allRoles = player.Roles.Select(x => x.Name).ToList();
-                    Rank guessedRank = Ranking.GuessRank(allRoles);
-                    Rank queriedRank = await Data.QueryRank(discordID);
-
-
-                    // Attempt to solve the inconsistency in the database.
-                    if (queriedRank == null)
-                    {
-                        Console.WriteLine($"The player {player.Username} does not have a stored rank, but has a uplay ID association. Fixing.");
-                        UbisoftRank response = await UApi.QuerySingleRank(uplayID);
-                        Rank actualRank = response.ToRank();
-                        Console.WriteLine($"Fetched rank {actualRank.FullPrint()} for player {player.Username}");
-                        await Data.UpdateRanks(discordID, actualRank);
-                        queriedRank = actualRank;
-                    }
-
-                    if (!guessedRank.Equals(queriedRank))
-                    {
-                        try
-                        {
-                            Console.WriteLine($"Guessed and queried rank of user {player.Username} on guild {guild.GetName()} do not match.");
-                            if(queriedRank != null && guessedRank != null)
-                            {
-                                Console.WriteLine($"guessed: ({guessedRank.FullPrint()},{guessedRank.level}), queried: ({queriedRank.FullPrint()},{queriedRank.level})");
                             }
 
                             UbisoftRank response = await UApi.QuerySingleRank(uplayID);
