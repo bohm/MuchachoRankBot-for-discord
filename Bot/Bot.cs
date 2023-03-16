@@ -355,7 +355,7 @@ namespace RankBot
                     RankDataPointV6 storedRank = await Data.QueryRankInfo(discordId);
                     MetalV6 fetchedMetal = fetchedRank.ToMetal();
                     MetalV6 storedMetal = storedRank.ToMetal();
-                    if (fetchedMetal != storedMetal)
+                    if (fetchedMetal == storedMetal)
                     {
                         updateRequired = false;
                     }
